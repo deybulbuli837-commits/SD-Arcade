@@ -128,17 +128,28 @@ export default function VirtualController({ nostalgist, className = "absolute in
     };
   }, [nostalgist, config, triggerPress, triggerRelease]);
 
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+  useEffect(() => {
+    setIsTouchDevice(typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches);
+  }, []);
+
   const handleJoystickMove = (e) => {
     if (!nostalgistRef.current) return;
-    const threshold = 15; // Lower Deadzone threshold
     const newDirections = new Set();
     
-    if (e.y > threshold) newDirections.add('up');
-    if (e.y < -threshold) newDirections.add('down');
-    if (e.x > threshold) newDirections.add('right');
-    if (e.x < -threshold) newDirections.add('left');
+    // Calculate true radial distance for accurate diagonals
+    const distance = Math.sqrt((e.x * e.x) + (e.y * e.y));
+    const threshold = 15; // Radial Deadzone
+    
+    if (distance > threshold) {
+      if (e.y > threshold * 0.5) newDirections.add('up');
+      if (e.y < -threshold * 0.5) newDirections.add('down');
+      if (e.x > threshold * 0.5) newDirections.add('right');
+      if (e.x < -threshold * 0.5) newDirections.add('left');
+    }
 
-    // Fallback: Use direct string matching if coordinate math fails
+    // Fallback: Use direct string matching if coordinate math fails (e.g. library bugs)
     if (newDirections.size === 0 && e.direction) {
       if (e.direction === 'FORWARD') newDirections.add('up');
       if (e.direction === 'BACKWARD') newDirections.add('down');
@@ -168,13 +179,15 @@ export default function VirtualController({ nostalgist, className = "absolute in
         onPointerUp={(e) => { e.preventDefault(); triggerRelease(buttonKey); }}
         onPointerLeave={(e) => { e.preventDefault(); triggerRelease(buttonKey); }}
         onContextMenu={(e) => e.preventDefault()}
-        className={`w-14 h-14 rounded-full ${color} flex items-center justify-center text-white font-bold text-xl shadow-[0_0_15px_rgba(188,19,254,0.5)] active:scale-95 transition-transform select-none touch-none`}
+        className={`w-14 h-14 rounded-full ${color} flex items-center justify-center text-white font-bold text-xl shadow-[0_0_15px_rgba(188,19,254,0.3)] active:scale-95 transition-transform select-none touch-none opacity-90`}
       >
         {label}
       </button>
-      <span className="hidden lg:block absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#00f3ff] font-mono font-bold bg-black/80 px-2 py-0.5 rounded border border-[#00f3ff]/30 pointer-events-none uppercase">
-        {pcKey}
-      </span>
+      {!isTouchDevice && (
+        <span className="hidden lg:block absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-white/50 font-mono font-bold bg-black/60 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none uppercase">
+          {pcKey}
+        </span>
+      )}
     </div>
   );
 
@@ -189,9 +202,10 @@ export default function VirtualController({ nostalgist, className = "absolute in
             onPointerUp={(e) => { e.preventDefault(); triggerRelease('l'); }}
             onPointerLeave={(e) => { e.preventDefault(); triggerRelease('l'); }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-24 h-10 rounded-full bg-gray-800/80 border border-white/20 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.1)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
+            className="w-24 h-10 rounded-full bg-gray-800/60 border border-white/10 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.05)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
           >
-            L <span className="hidden lg:inline text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.shoulderL.keys.l}</span>
+            L 
+            {!isTouchDevice && <span className="hidden lg:inline text-[9px] text-white/50 font-mono border border-white/10 px-1 rounded bg-black/40 uppercase">{config.shoulderL.keys.l}</span>}
           </button>
         </div>
 
@@ -202,74 +216,75 @@ export default function VirtualController({ nostalgist, className = "absolute in
             onPointerUp={(e) => { e.preventDefault(); triggerRelease('r'); }}
             onPointerLeave={(e) => { e.preventDefault(); triggerRelease('r'); }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-24 h-10 rounded-full bg-gray-800/80 border border-white/20 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.1)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
+            className="w-24 h-10 rounded-full bg-gray-800/60 border border-white/10 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.05)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
           >
-            R <span className="hidden lg:inline text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.shoulderR.keys.r}</span>
+            R 
+            {!isTouchDevice && <span className="hidden lg:inline text-[9px] text-white/50 font-mono border border-white/10 px-1 rounded bg-black/40 uppercase">{config.shoulderR.keys.r}</span>}
           </button>
         </div>
 
         {/* Joystick */}
-        <div className="absolute pointer-events-auto touch-none" style={{ left: `${config.joystick.left}%`, top: `${config.joystick.top}%`, transform: `scale(${config.joystick.scale})` }}>
+        <div className="absolute pointer-events-auto touch-none opacity-90" style={{ left: `${config.joystick.left}%`, top: `${config.joystick.top}%`, transform: `scale(${config.joystick.scale})` }}>
           <Joystick 
             size={120} 
             baseColor="rgba(255,255,255,0.1)" 
-            stickColor="rgba(0,243,255,0.8)" 
+            stickColor="rgba(0,243,255,0.5)" 
             move={handleJoystickMove} 
             stop={handleJoystickStop} 
           />
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden lg:flex gap-1 pointer-events-none">
-            {['up','down','left','right'].map(k => (
-              <span key={k} className="text-[10px] text-[#00f3ff] font-mono font-bold bg-black/80 px-1 rounded border border-[#00f3ff]/30 uppercase">
-                {config.joystick.keys[k]}
-              </span>
-            ))}
-          </div>
+          {!isTouchDevice && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden lg:flex gap-1 pointer-events-none">
+              {['up','down','left','right'].map(k => (
+                <span key={k} className="text-[9px] text-white/50 font-mono font-bold bg-black/60 px-1 rounded border border-white/10 uppercase">
+                  {config.joystick.keys[k]}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* System Buttons */}
-        <div className="absolute flex gap-4 pointer-events-auto" style={{ left: `${config.system.left}%`, top: `${config.system.top}%`, transform: `scale(${config.system.scale})` }}>
+        <div className="absolute flex gap-4 pointer-events-auto opacity-80" style={{ left: `${config.system.left}%`, top: `${config.system.top}%`, transform: `scale(${config.system.scale})` }}>
           {/* Select */}
           <div className="flex flex-col items-center gap-2">
-            <span className="hidden lg:block text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.system.keys.select}</span>
+            {!isTouchDevice && <span className="hidden lg:block text-[9px] text-white/50 font-mono border border-white/10 px-1 rounded bg-black/40 uppercase">{config.system.keys.select}</span>}
             <button
               onPointerDown={(e) => { e.preventDefault(); triggerPress('select'); }}
               onPointerUp={(e) => { e.preventDefault(); triggerRelease('select'); }}
               onPointerLeave={(e) => { e.preventDefault(); triggerRelease('select'); }}
               onContextMenu={(e) => e.preventDefault()}
-              className="w-12 h-6 rounded-full bg-gray-700/80 border border-white/20 text-white text-xs font-bold active:scale-95 transition-transform select-none touch-none"
+              className="w-10 h-4 rounded-full bg-gray-600/60 border border-white/10 text-white/80 text-[10px] font-bold active:scale-95 transition-transform select-none touch-none"
             >
               SEL
             </button>
           </div>
           {/* Start */}
           <div className="flex flex-col items-center gap-2">
-            <span className="hidden lg:block text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.system.keys.start}</span>
+            {!isTouchDevice && <span className="hidden lg:block text-[9px] text-white/50 font-mono border border-white/10 px-1 rounded bg-black/40 uppercase">{config.system.keys.start}</span>}
             <button
               onPointerDown={(e) => { e.preventDefault(); triggerPress('start'); }}
               onPointerUp={(e) => { e.preventDefault(); triggerRelease('start'); }}
               onPointerLeave={(e) => { e.preventDefault(); triggerRelease('start'); }}
               onContextMenu={(e) => e.preventDefault()}
-              className="w-12 h-6 rounded-full bg-gray-700/80 border border-white/20 text-white text-xs font-bold active:scale-95 transition-transform select-none touch-none"
+              className="w-10 h-4 rounded-full bg-gray-600/60 border border-white/10 text-white/80 text-[10px] font-bold active:scale-95 transition-transform select-none touch-none"
             >
-              STRT
+              STR
             </button>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="absolute w-40 h-40 pointer-events-auto" style={{ left: `${config.actions.left}%`, top: `${config.actions.top}%`, transform: `scale(${config.actions.scale})` }}>
-          <div className="absolute top-0 left-1/2 -translate-x-1/2">
-            <ActionButton label="X" buttonKey="x" pcKey={config.actions.keys.x} color="bg-[#00f3ff]" />
-          </div>
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
-            <ActionButton label="B" buttonKey="b" pcKey={config.actions.keys.b} color="bg-[#bc13fe]" />
-          </div>
-          <div className="absolute top-1/2 left-0 -translate-y-1/2">
-            <ActionButton label="Y" buttonKey="y" pcKey={config.actions.keys.y} color="bg-[#00f3ff]" />
-          </div>
-          <div className="absolute top-1/2 right-0 -translate-y-1/2">
-            <ActionButton label="A" buttonKey="a" pcKey={config.actions.keys.a} color="bg-[#bc13fe]" />
-          </div>
+        {/* Independent Action Buttons */}
+        <div className="absolute pointer-events-auto" style={{ left: `${config.actionX.left}%`, top: `${config.actionX.top}%`, transform: `scale(${config.actionX.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
+          <ActionButton label="X" buttonKey="x" pcKey={config.actionX.keys.x} color="bg-[#00f3ff]/80" />
+        </div>
+        <div className="absolute pointer-events-auto" style={{ left: `${config.actionY.left}%`, top: `${config.actionY.top}%`, transform: `scale(${config.actionY.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
+          <ActionButton label="Y" buttonKey="y" pcKey={config.actionY.keys.y} color="bg-[#00f3ff]/80" />
+        </div>
+        <div className="absolute pointer-events-auto" style={{ left: `${config.actionA.left}%`, top: `${config.actionA.top}%`, transform: `scale(${config.actionA.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
+          <ActionButton label="A" buttonKey="a" pcKey={config.actionA.keys.a} color="bg-[#bc13fe]/80" />
+        </div>
+        <div className="absolute pointer-events-auto" style={{ left: `${config.actionB.left}%`, top: `${config.actionB.top}%`, transform: `scale(${config.actionB.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
+          <ActionButton label="B" buttonKey="b" pcKey={config.actionB.keys.b} color="bg-[#bc13fe]/80" />
         </div>
 
       </div>

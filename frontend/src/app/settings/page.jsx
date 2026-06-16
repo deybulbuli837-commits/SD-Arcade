@@ -136,10 +136,10 @@ export default function SettingsPage() {
             {activeTab === 'layout' && (
               <div className="space-y-4">
                 <p className="text-gray-400 text-sm">Drag the control clusters directly on the preview window to reposition them.</p>
-                {['joystick', 'actions', 'system', 'shoulderL', 'shoulderR'].map(group => (
+                {['joystick', 'actionA', 'actionB', 'actionX', 'actionY', 'system', 'shoulderL', 'shoulderR'].map(group => (
                   <div key={group} className="space-y-2">
                     <label className="flex justify-between text-xs font-bold text-[#00f3ff] uppercase tracking-wider">
-                      {group} Size <span className="text-white">{Math.round(config[group].scale * 100)}%</span>
+                      {group.replace('action', 'Button ')} Size <span className="text-white">{Math.round(config[group].scale * 100)}%</span>
                     </label>
                     <input 
                       type="range" min="0.5" max="2.0" step="0.1" 
@@ -166,10 +166,10 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <h3 className="text-sm font-bold text-[#bc13fe] uppercase border-b border-[#bc13fe]/30 pb-1">Action Buttons</h3>
-                  <KeyBindInput group="actions" action="a" label="A Button" />
-                  <KeyBindInput group="actions" action="b" label="B Button" />
-                  <KeyBindInput group="actions" action="x" label="X Button" />
-                  <KeyBindInput group="actions" action="y" label="Y Button" />
+                  <KeyBindInput group="actionA" action="a" label="A Button" />
+                  <KeyBindInput group="actionB" action="b" label="B Button" />
+                  <KeyBindInput group="actionX" action="x" label="X Button" />
+                  <KeyBindInput group="actionY" action="y" label="Y Button" />
                 </div>
 
                 <div className="space-y-2">
@@ -231,7 +231,10 @@ export default function SettingsPage() {
                   <DraggableOverlay groupName="shoulderL" />
                   <DraggableOverlay groupName="shoulderR" />
                   <DraggableOverlay groupName="joystick" />
-                  <DraggableOverlay groupName="actions" />
+                  <DraggableOverlay groupName="actionA" />
+                  <DraggableOverlay groupName="actionB" />
+                  <DraggableOverlay groupName="actionX" />
+                  <DraggableOverlay groupName="actionY" />
                   <DraggableOverlay groupName="system" />
                 </>
               )}

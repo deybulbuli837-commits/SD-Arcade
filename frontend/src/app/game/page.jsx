@@ -79,6 +79,12 @@ function GameDetailsContent() {
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 relative z-10">
             <div>
+              <button 
+                onClick={() => router.push('/dashboard')}
+                className="flex items-center gap-2 text-[#00f3ff] hover:text-white transition-colors mb-4 text-sm font-bold"
+              >
+                <Monitor className="w-4 h-4" /> &larr; Back to Arcade
+              </button>
               <h1 className="text-4xl font-black neon-text mb-2">{rom.gameTitle}</h1>
               <span className="inline-flex items-center gap-1 px-3 py-1 bg-white/10 rounded-full text-sm">
                 <Monitor className="w-4 h-4" /> {rom.platform}

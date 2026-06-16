@@ -4,10 +4,10 @@ export const DEFAULT_CONTROLLER_CONFIG = {
     left: 10, top: 60, scale: 1, 
     keys: { up: 'w', down: 's', left: 'a', right: 'd' } 
   },
-  actions: { 
-    left: 70, top: 60, scale: 1, 
-    keys: { a: 'arrowup', b: 'arrowleft', x: 'arrowdown', y: 'arrowright' } 
-  },
+  actionA: { left: 85, top: 70, scale: 1, keys: { a: 'arrowup' } },
+  actionB: { left: 75, top: 85, scale: 1, keys: { b: 'arrowleft' } },
+  actionX: { left: 75, top: 55, scale: 1, keys: { x: 'arrowdown' } },
+  actionY: { left: 65, top: 70, scale: 1, keys: { y: 'arrowright' } },
   system: { 
     left: 45, top: 85, scale: 1, 
     keys: { start: 'enter', select: 'shift' } 
@@ -27,13 +27,50 @@ export const getControllerConfig = () => {
   const saved = localStorage.getItem('arcade_ctrl_config');
   if (!saved) return DEFAULT_CONTROLLER_CONFIG;
   try {
-    // Merge deeply to handle any missing fields from older versions
     const parsed = JSON.parse(saved);
+    
+    // Migration logic for old unified 'actions' block
+    let mergedActionA = { ...DEFAULT_CONTROLLER_CONFIG.actionA, ...parsed.actionA };
+    let mergedActionB = { ...DEFAULT_CONTROLLER_CONFIG.actionB, ...parsed.actionB };
+    let mergedActionX = { ...DEFAULT_CONTROLLER_CONFIG.actionX, ...parsed.actionX };
+    let mergedActionY = { ...DEFAULT_CONTROLLER_CONFIG.actionY, ...parsed.actionY };
+
+    if (parsed.actions && parsed.actions.keys) {
+      // Migrate keys
+      mergedActionA.keys = { a: parsed.actions.keys.a || mergedActionA.keys.a };
+      mergedActionB.keys = { b: parsed.actions.keys.b || mergedActionB.keys.b };
+      mergedActionX.keys = { x: parsed.actions.keys.x || mergedActionX.keys.x };
+      mergedActionY.keys = { y: parsed.actions.keys.y || mergedActionY.keys.y };
+      
+      // Attempt to approximate positions based on old unified block position,
+      // or just leave them at their new optimal defaults if they weren't individually saved.
+      if (!parsed.actionA) {
+        mergedActionA.left = parsed.actions.left + 15;
+        mergedActionA.top = parsed.actions.top + 10;
+        mergedActionA.scale = parsed.actions.scale;
+        
+        mergedActionB.left = parsed.actions.left + 5;
+        mergedActionB.top = parsed.actions.top + 25;
+        mergedActionB.scale = parsed.actions.scale;
+        
+        mergedActionX.left = parsed.actions.left + 5;
+        mergedActionX.top = parsed.actions.top - 5;
+        mergedActionX.scale = parsed.actions.scale;
+        
+        mergedActionY.left = parsed.actions.left - 5;
+        mergedActionY.top = parsed.actions.top + 10;
+        mergedActionY.scale = parsed.actions.scale;
+      }
+    }
+
     return {
       ...DEFAULT_CONTROLLER_CONFIG,
       ...parsed,
+      actionA: mergedActionA,
+      actionB: mergedActionB,
+      actionX: mergedActionX,
+      actionY: mergedActionY,
       joystick: { ...DEFAULT_CONTROLLER_CONFIG.joystick, ...parsed.joystick, keys: { ...DEFAULT_CONTROLLER_CONFIG.joystick.keys, ...(parsed.joystick?.keys || {}) } },
-      actions: { ...DEFAULT_CONTROLLER_CONFIG.actions, ...parsed.actions, keys: { ...DEFAULT_CONTROLLER_CONFIG.actions.keys, ...(parsed.actions?.keys || {}) } },
       system: { ...DEFAULT_CONTROLLER_CONFIG.system, ...parsed.system, keys: { ...DEFAULT_CONTROLLER_CONFIG.system.keys, ...(parsed.system?.keys || {}) } },
       shoulderL: { ...DEFAULT_CONTROLLER_CONFIG.shoulderL, ...parsed.shoulderL, keys: { ...DEFAULT_CONTROLLER_CONFIG.shoulderL.keys, ...(parsed.shoulderL?.keys || {}) } },
       shoulderR: { ...DEFAULT_CONTROLLER_CONFIG.shoulderR, ...parsed.shoulderR, keys: { ...DEFAULT_CONTROLLER_CONFIG.shoulderR.keys, ...(parsed.shoulderR?.keys || {}) } },

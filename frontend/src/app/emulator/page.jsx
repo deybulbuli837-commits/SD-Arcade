@@ -141,12 +141,12 @@ function EmulatorView() {
         </div>
       )}
 
-      <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/80 to-transparent z-[60] flex justify-between items-center px-4 md:px-8 opacity-0 hover:opacity-100 transition-opacity">
-        <button onClick={handleExit} className="p-2 bg-black/50 rounded-full text-white hover:text-red-400 hover:bg-black/80 transition-all flex items-center gap-2 pointer-events-auto">
-          <X className="w-5 h-5" /> <span className="hidden md:inline font-bold">Exit</span>
+      <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/90 via-black/50 to-transparent z-[60] flex justify-between items-center px-4 md:px-8 opacity-100 lg:opacity-0 lg:hover:opacity-100 transition-opacity pointer-events-none">
+        <button onClick={handleExit} className="p-2 bg-black/60 rounded-full text-white hover:text-red-400 hover:bg-black/90 transition-all flex items-center gap-2 pointer-events-auto shadow-lg backdrop-blur-md border border-white/10">
+          <X className="w-5 h-5" /> <span className="font-bold">Exit</span>
         </button>
-        <button onClick={toggleFullscreen} className="p-2 bg-black/50 rounded-full text-white hover:text-[#00f3ff] hover:bg-black/80 transition-all flex items-center gap-2 pointer-events-auto">
-          <Maximize className="w-5 h-5" /> <span className="hidden md:inline font-bold">Fullscreen</span>
+        <button onClick={toggleFullscreen} className="p-2 bg-black/60 rounded-full text-white hover:text-[#00f3ff] hover:bg-black/90 transition-all flex items-center gap-2 pointer-events-auto shadow-lg backdrop-blur-md border border-white/10">
+          <Maximize className="w-5 h-5" /> <span className="font-bold">Fullscreen</span>
         </button>
       </div>
 
