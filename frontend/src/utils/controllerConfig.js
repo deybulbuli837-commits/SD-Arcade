@@ -6,7 +6,7 @@ export const DEFAULT_CONTROLLER_CONFIG = {
   },
   actions: { 
     left: 70, top: 60, scale: 1, 
-    keys: { a: 'x', b: 'z', x: 'a', y: 's' } 
+    keys: { a: 'arrowup', b: 'arrowleft', x: 'arrowdown', y: 'arrowright' } 
   },
   system: { 
     left: 45, top: 85, scale: 1, 
