@@ -20,7 +20,10 @@ export default function Navbar() {
   return (
     <nav className="glass-card border-x-0 border-t-0 rounded-none px-3 sm:px-6 py-4 mb-8 flex justify-between items-center gap-2">
       <Link href="/dashboard" className="shrink-0">
-        <h1 className="text-lg sm:text-3xl font-black tracking-tighter whitespace-nowrap bg-clip-text text-transparent bg-gradient-to-r from-[#00f3ff] to-[#bc13fe] drop-shadow-[0_0_10px_rgba(188,19,254,0.5)]">
+        <h1 
+          className="text-2xl sm:text-4xl font-black tracking-tighter whitespace-nowrap neon-text text-white"
+          style={{ textShadow: "2px 2px 0px #bc13fe, 4px 4px 0px #00f3ff" }}
+        >
           SD-Arcade
         </h1>
       </Link>

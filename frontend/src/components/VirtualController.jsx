@@ -150,7 +150,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
     
     // Detect if the values are normalized or pixel-based
     const isNormalized = Math.abs(x) <= 1.5 && Math.abs(y) <= 1.5;
-    const threshold = isNormalized ? 0.3 : 10;
+    const threshold = isNormalized ? 0.2 : 5;
     
     if (y > threshold) newDirections.add('up');
     if (y < -threshold) newDirections.add('down');
@@ -180,14 +180,69 @@ export default function VirtualController({ nostalgist, className = "absolute in
     activeDirections.current.clear();
   };
 
+  // --- Global Touch Listener for Macro Stacking (Bypasses Umbrella Rule) ---
+  const activeTouchButtons = useRef(new Set());
+
+  useEffect(() => {
+    if (!isTouchDevice) return; // Only apply global touch logic on mobile
+    
+    const handleTouch = (e) => {
+      const newActive = new Set();
+      
+      // Map all current touches to underlying elements
+      for (let i = 0; i < e.touches.length; i++) {
+        const touch = e.touches[i];
+        const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+        
+        elements.forEach(el => {
+          const btnName = el.getAttribute('data-action-btn');
+          if (btnName) newActive.add(btnName);
+        });
+      }
+
+      // Fire presses for new buttons
+      newActive.forEach(btn => {
+        if (!activeTouchButtons.current.has(btn)) {
+          triggerPress(btn);
+        }
+      });
+      
+      // Fire releases for buttons no longer touched
+      activeTouchButtons.current.forEach(btn => {
+        if (!newActive.has(btn)) {
+          triggerRelease(btn);
+        }
+      });
+      
+      activeTouchButtons.current = newActive;
+    };
+
+    window.addEventListener('touchstart', handleTouch, { passive: false });
+    window.addEventListener('touchmove', handleTouch, { passive: false });
+    window.addEventListener('touchend', handleTouch, { passive: false });
+    window.addEventListener('touchcancel', handleTouch, { passive: false });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouch);
+      window.removeEventListener('touchmove', handleTouch);
+      window.removeEventListener('touchend', handleTouch);
+      window.removeEventListener('touchcancel', handleTouch);
+      
+      // Failsafe release
+      activeTouchButtons.current.forEach(btn => triggerRelease(btn));
+      activeTouchButtons.current.clear();
+    };
+  }, [triggerPress, triggerRelease, isTouchDevice]);
+
   const ActionButton = ({ label, buttonKey, pcKey, color = 'bg-[#bc13fe]' }) => (
-    <div className="relative">
+    <div className="relative pointer-events-auto touch-none">
       <button
-        onPointerDown={(e) => { e.preventDefault(); triggerPress(buttonKey); }}
-        onPointerUp={(e) => { e.preventDefault(); triggerRelease(buttonKey); }}
-        onPointerLeave={(e) => { e.preventDefault(); triggerRelease(buttonKey); }}
+        data-action-btn={buttonKey}
+        onPointerDown={(e) => { if (e.pointerType === 'mouse') triggerPress(buttonKey); }}
+        onPointerUp={(e) => { if (e.pointerType === 'mouse') triggerRelease(buttonKey); }}
+        onPointerLeave={(e) => { if (e.pointerType === 'mouse') triggerRelease(buttonKey); }}
         onContextMenu={(e) => e.preventDefault()}
-        className={`w-14 h-14 rounded-full ${color} flex items-center justify-center text-white font-bold text-xl shadow-[0_0_15px_rgba(188,19,254,0.3)] active:scale-95 transition-transform select-none touch-none opacity-90`}
+        className={`w-14 h-14 rounded-full ${color} flex items-center justify-center text-white font-bold text-xl shadow-[0_0_15px_rgba(188,19,254,0.3)] transition-transform select-none touch-none opacity-90`}
       >
         {label}
       </button>
@@ -204,13 +259,14 @@ export default function VirtualController({ nostalgist, className = "absolute in
       <div className="w-full h-full pointer-events-none relative">
         
         {/* Shoulder L */}
-        <div className="absolute pointer-events-auto" style={{ left: `${config.shoulderL.left}%`, top: `${config.shoulderL.top}%`, transform: `scale(${config.shoulderL.scale})` }}>
+        <div className="absolute pointer-events-auto touch-none" style={{ left: `${config.shoulderL.left}%`, top: `${config.shoulderL.top}%`, transform: `scale(${config.shoulderL.scale})` }}>
           <button
-            onPointerDown={(e) => { e.preventDefault(); triggerPress('l'); }}
-            onPointerUp={(e) => { e.preventDefault(); triggerRelease('l'); }}
-            onPointerLeave={(e) => { e.preventDefault(); triggerRelease('l'); }}
+            data-action-btn="l"
+            onPointerDown={(e) => { if (e.pointerType === 'mouse') triggerPress('l'); }}
+            onPointerUp={(e) => { if (e.pointerType === 'mouse') triggerRelease('l'); }}
+            onPointerLeave={(e) => { if (e.pointerType === 'mouse') triggerRelease('l'); }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-24 h-10 rounded-full bg-gray-800/60 border border-white/10 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.05)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
+            className="w-24 h-10 rounded-full bg-gray-800/60 border border-white/10 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.05)] transition-transform select-none touch-none flex items-center justify-center gap-2 pointer-events-auto"
           >
             L 
             {!isTouchDevice && <span className="hidden lg:inline text-[9px] text-white/50 font-mono border border-white/10 px-1 rounded bg-black/40 uppercase">{config.shoulderL.keys.l}</span>}
@@ -218,13 +274,14 @@ export default function VirtualController({ nostalgist, className = "absolute in
         </div>
 
         {/* Shoulder R */}
-        <div className="absolute pointer-events-auto" style={{ left: `${config.shoulderR.left}%`, top: `${config.shoulderR.top}%`, transform: `scale(${config.shoulderR.scale})` }}>
+        <div className="absolute pointer-events-auto touch-none" style={{ left: `${config.shoulderR.left}%`, top: `${config.shoulderR.top}%`, transform: `scale(${config.shoulderR.scale})` }}>
           <button
-            onPointerDown={(e) => { e.preventDefault(); triggerPress('r'); }}
-            onPointerUp={(e) => { e.preventDefault(); triggerRelease('r'); }}
-            onPointerLeave={(e) => { e.preventDefault(); triggerRelease('r'); }}
+            data-action-btn="r"
+            onPointerDown={(e) => { if (e.pointerType === 'mouse') triggerPress('r'); }}
+            onPointerUp={(e) => { if (e.pointerType === 'mouse') triggerRelease('r'); }}
+            onPointerLeave={(e) => { if (e.pointerType === 'mouse') triggerRelease('r'); }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-24 h-10 rounded-full bg-gray-800/60 border border-white/10 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.05)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
+            className="w-24 h-10 rounded-full bg-gray-800/60 border border-white/10 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.05)] transition-transform select-none touch-none flex items-center justify-center gap-2 pointer-events-auto"
           >
             R 
             {!isTouchDevice && <span className="hidden lg:inline text-[9px] text-white/50 font-mono border border-white/10 px-1 rounded bg-black/40 uppercase">{config.shoulderR.keys.r}</span>}

@@ -147,6 +147,15 @@ function EmulatorView() {
     if (nostalgistInst) nostalgistInst.resume();
   };
 
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const base64ToBlob = (base64) => {
     const parts = base64.split(';base64,');
     const contentType = parts[0].split(':')[1];
