@@ -135,7 +135,7 @@ export default function DashboardPage() {
                         >
                           <Play className="w-4 h-4" /> Play
                         </button>
-                        <Link href={`/game/${rom.romHash}`} className="px-4 py-2 bg-white/10 rounded-lg text-white hover:bg-white/20 transition-colors">
+                        <Link href={`/game?hash=${rom.romHash}`} className="px-4 py-2 bg-white/10 rounded-lg text-white hover:bg-white/20 transition-colors">
                           Details
                         </Link>
                       </div>

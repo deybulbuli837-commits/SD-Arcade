@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchRoms } from '../../../features/romSlice';
-import ProtectedRoute from '../../../components/ProtectedRoute';
-import Navbar from '../../../components/Navbar';
-import { useRouter } from 'next/navigation';
+import { fetchRoms } from '../../features/romSlice';
+import ProtectedRoute from '../../components/ProtectedRoute';
+import Navbar from '../../components/Navbar';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Play, Trash2, Clock, Calendar, Hash, Monitor, Activity } from 'lucide-react';
-import { deleteRomLocally, checkRomExistsLocally } from '../../../lib/db';
-import api from '../../../lib/axios';
+import { deleteRomLocally, checkRomExistsLocally } from '../../lib/db';
+import api from '../../lib/axios';
 
-export default function GameDetailsPage({ params }) {
-  const { romHash } = use(params);
+function GameDetailsContent() {
+  const searchParams = useSearchParams();
+  const romHash = searchParams.get('hash');
+  
   const dispatch = useDispatch();
   const router = useRouter();
   const { roms } = useSelector((state) => state.roms);
@@ -145,5 +147,13 @@ export default function GameDetailsPage({ params }) {
         </div>
       </div>
     </ProtectedRoute>
+  );
+}
+
+export default function GameDetailsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><h2 className="text-[#00f3ff] animate-pulse">Loading Game Details...</h2></div>}>
+      <GameDetailsContent />
+    </Suspense>
   );
 }
