@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('layout'); // 'layout' | 'keys' | 'opacity'
   const [draggingGroup, setDraggingGroup] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const previewRef = useRef(null);
 
@@ -209,44 +210,94 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-4">
             <h2 className="text-xl font-bold flex justify-between items-center">
               Live Layout
-              {activeTab === 'layout' && <span className="text-xs bg-[#bc13fe] px-2 py-1 rounded animate-pulse">Drag Mode Active</span>}
+              {activeTab === 'layout' && (
+                <button 
+                  onClick={() => setIsFullscreen(true)}
+                  className="text-xs bg-[#00f3ff] text-black font-bold px-3 py-1.5 rounded hover:bg-white transition-colors"
+                >
+                  Edit in Fullscreen
+                </button>
+              )}
             </h2>
             <div className="flex justify-center bg-gray-900/50 rounded-xl p-4 border border-white/5">
               <div 
-                ref={previewRef}
-                className="relative w-full max-w-[360px] aspect-[9/16] bg-black border-[4px] border-gray-800 rounded-3xl overflow-hidden shadow-2xl touch-none"
+                ref={!isFullscreen ? previewRef : null}
+                className="relative w-full h-[60vh] min-h-[400px] bg-black border border-white/20 rounded-xl overflow-hidden shadow-2xl touch-none"
               >
                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsIDI1NSwgMjU1LCAwLjEpIi8+PC9zdmc+')] opacity-50"></div>
                 
-                {/* Fake Gameplay Background */}
-                <div className="absolute top-0 left-0 right-0 h-[50%] bg-gradient-to-br from-indigo-900 to-purple-900 opacity-60 flex flex-col items-center justify-center pointer-events-none border-b-2 border-[#00f3ff]/30">
-                  <p className="text-white/40 font-black text-2xl tracking-widest rotate-6 mb-2">GAME SCREEN</p>
-                  <p className="text-white/20 text-xs text-center px-4">Place controls below this area for mobile portrait play.</p>
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 to-purple-900 opacity-30 flex items-center justify-center pointer-events-none">
+                  <p className="text-white/20 font-black text-4xl tracking-widest rotate-12 text-center px-4">
+                    SCREEN AREA
+                  </p>
                 </div>
               
-              {/* The Controller Itself */}
-              <VirtualController nostalgist={null} className="absolute inset-0 z-40 pointer-events-none overflow-hidden" configOverride={config} />
+                <VirtualController nostalgist={null} className="absolute inset-0 z-40 pointer-events-none overflow-hidden" configOverride={config} />
 
-              {/* Drag Handles Overlay */}
-              {activeTab === 'layout' && (
-                <>
-                  <DraggableOverlay groupName="shoulderL" />
-                  <DraggableOverlay groupName="shoulderR" />
-                  <DraggableOverlay groupName="joystick" />
-                  <DraggableOverlay groupName="actionA" />
-                  <DraggableOverlay groupName="actionB" />
-                  <DraggableOverlay groupName="actionX" />
-                  <DraggableOverlay groupName="actionY" />
-                  <DraggableOverlay groupName="system" />
-                </>
-              )}
+                {activeTab === 'layout' && !isFullscreen && (
+                  <>
+                    <DraggableOverlay groupName="shoulderL" />
+                    <DraggableOverlay groupName="shoulderR" />
+                    <DraggableOverlay groupName="joystick" />
+                    <DraggableOverlay groupName="actionA" />
+                    <DraggableOverlay groupName="actionB" />
+                    <DraggableOverlay groupName="actionX" />
+                    <DraggableOverlay groupName="actionY" />
+                    <DraggableOverlay groupName="system" />
+                  </>
+                )}
               </div>
             </div>
-            <p className="text-sm text-gray-400 text-center">Your custom layout applies instantly to both mobile and desktop play.</p>
+            <p className="text-sm text-gray-400 text-center">To accurately arrange buttons for mobile, use the <strong>Edit in Fullscreen</strong> mode on your device.</p>
           </div>
 
         </div>
       </div>
+
+      {/* Fullscreen Editor Modal */}
+      {isFullscreen && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black touch-none"
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        >
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsIDI1NSwgMjU1LCAwLjEpIi8+PC9zdmc+')] opacity-50"></div>
+          
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+            <p className="text-[#00f3ff] font-black text-5xl tracking-widest rotate-12 text-center">
+              FULLSCREEN EDITOR
+            </p>
+          </div>
+
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[110] flex gap-4">
+            <button 
+              onClick={() => setIsFullscreen(false)}
+              className="bg-gray-800 border border-white/20 text-white px-6 py-2 rounded-full font-bold shadow-lg pointer-events-auto"
+            >
+              Done Editing
+            </button>
+            <button 
+              onClick={handleSave}
+              className="bg-[#00f3ff] text-black px-6 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(0,243,255,0.4)] pointer-events-auto flex items-center gap-2"
+            >
+              {saved ? 'Saved!' : <><Save className="w-4 h-4" /> Save</>}
+            </button>
+          </div>
+
+          <div ref={previewRef} className="absolute inset-0">
+            <VirtualController nostalgist={null} className="absolute inset-0 z-40 pointer-events-none overflow-hidden" configOverride={config} />
+            <DraggableOverlay groupName="shoulderL" />
+            <DraggableOverlay groupName="shoulderR" />
+            <DraggableOverlay groupName="joystick" />
+            <DraggableOverlay groupName="actionA" />
+            <DraggableOverlay groupName="actionB" />
+            <DraggableOverlay groupName="actionX" />
+            <DraggableOverlay groupName="actionY" />
+            <DraggableOverlay groupName="system" />
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }
