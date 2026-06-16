@@ -132,9 +132,9 @@ function EmulatorView() {
   }
 
   return (
-    <div className="bg-black min-h-screen flex flex-col relative">
+    <div className="bg-black h-[100dvh] w-full overflow-hidden flex flex-col relative">
       {isPortrait && (
-        <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center text-center p-8 backdrop-blur-sm">
+        <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center text-center p-8 backdrop-blur-sm pointer-events-none">
           <RotateCcw className="w-16 h-16 text-[#00f3ff] mb-6 animate-spin-slow" />
           <h2 className="text-2xl font-bold mb-4 neon-text">Rotate Device</h2>
           <p className="text-gray-400">For the best experience, please rotate your device to landscape mode.</p>
@@ -150,8 +150,8 @@ function EmulatorView() {
         </button>
       </div>
 
-      <div ref={containerRef} className="flex-1 flex items-center justify-center w-full h-full relative p-4 overflow-hidden">
-        <div className="relative w-full max-w-[1000px] aspect-[4/3] mx-auto bg-black border border-white/10 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,243,255,0.2)]">
+      <div ref={containerRef} className="flex-1 flex items-center justify-center w-full h-full relative p-2 md:p-4 overflow-hidden mt-8 md:mt-0">
+        <div className="relative w-full max-w-[1000px] h-full max-h-[65vh] md:max-h-full mx-auto bg-black border border-white/10 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,243,255,0.2)]">
           <canvas 
             ref={canvasRef} 
             className="w-full h-full object-contain bg-black pointer-events-none" 

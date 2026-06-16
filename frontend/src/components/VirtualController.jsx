@@ -130,13 +130,21 @@ export default function VirtualController({ nostalgist, className = "absolute in
 
   const handleJoystickMove = (e) => {
     if (!nostalgistRef.current) return;
-    const threshold = 20; // Deadzone threshold
+    const threshold = 15; // Lower Deadzone threshold
     const newDirections = new Set();
     
     if (e.y > threshold) newDirections.add('up');
     if (e.y < -threshold) newDirections.add('down');
     if (e.x > threshold) newDirections.add('right');
     if (e.x < -threshold) newDirections.add('left');
+
+    // Fallback: Use direct string matching if coordinate math fails
+    if (newDirections.size === 0 && e.direction) {
+      if (e.direction === 'FORWARD') newDirections.add('up');
+      if (e.direction === 'BACKWARD') newDirections.add('down');
+      if (e.direction === 'RIGHT') newDirections.add('right');
+      if (e.direction === 'LEFT') newDirections.add('left');
+    }
 
     newDirections.forEach(dir => {
       if (!activeDirections.current.has(dir)) triggerPress(dir);
@@ -164,7 +172,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
       >
         {label}
       </button>
-      <span className="hidden md:block absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#00f3ff] font-mono font-bold bg-black/80 px-2 py-0.5 rounded border border-[#00f3ff]/30 pointer-events-none uppercase">
+      <span className="hidden lg:block absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#00f3ff] font-mono font-bold bg-black/80 px-2 py-0.5 rounded border border-[#00f3ff]/30 pointer-events-none uppercase">
         {pcKey}
       </span>
     </div>
@@ -183,7 +191,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
             onContextMenu={(e) => e.preventDefault()}
             className="w-24 h-10 rounded-full bg-gray-800/80 border border-white/20 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.1)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
           >
-            L <span className="hidden md:inline text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.shoulderL.keys.l}</span>
+            L <span className="hidden lg:inline text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.shoulderL.keys.l}</span>
           </button>
         </div>
 
@@ -196,7 +204,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
             onContextMenu={(e) => e.preventDefault()}
             className="w-24 h-10 rounded-full bg-gray-800/80 border border-white/20 text-white font-bold text-sm shadow-[0_0_10px_rgba(255,255,255,0.1)] active:scale-95 transition-transform select-none touch-none flex items-center justify-center gap-2"
           >
-            R <span className="hidden md:inline text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.shoulderR.keys.r}</span>
+            R <span className="hidden lg:inline text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.shoulderR.keys.r}</span>
           </button>
         </div>
 
@@ -209,7 +217,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
             move={handleJoystickMove} 
             stop={handleJoystickStop} 
           />
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden md:flex gap-1 pointer-events-none">
+          <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden lg:flex gap-1 pointer-events-none">
             {['up','down','left','right'].map(k => (
               <span key={k} className="text-[10px] text-[#00f3ff] font-mono font-bold bg-black/80 px-1 rounded border border-[#00f3ff]/30 uppercase">
                 {config.joystick.keys[k]}
@@ -222,7 +230,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
         <div className="absolute flex gap-4 pointer-events-auto" style={{ left: `${config.system.left}%`, top: `${config.system.top}%`, transform: `scale(${config.system.scale})` }}>
           {/* Select */}
           <div className="flex flex-col items-center gap-2">
-            <span className="hidden md:block text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.system.keys.select}</span>
+            <span className="hidden lg:block text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.system.keys.select}</span>
             <button
               onPointerDown={(e) => { e.preventDefault(); triggerPress('select'); }}
               onPointerUp={(e) => { e.preventDefault(); triggerRelease('select'); }}
@@ -235,7 +243,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
           </div>
           {/* Start */}
           <div className="flex flex-col items-center gap-2">
-            <span className="hidden md:block text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.system.keys.start}</span>
+            <span className="hidden lg:block text-[10px] text-[#00f3ff] font-mono border border-[#00f3ff]/30 px-1 rounded bg-black/50 uppercase">{config.system.keys.start}</span>
             <button
               onPointerDown={(e) => { e.preventDefault(); triggerPress('start'); }}
               onPointerUp={(e) => { e.preventDefault(); triggerRelease('start'); }}
