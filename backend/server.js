@@ -49,10 +49,25 @@ io.on('connection', (socket) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/roms', romRoutes);
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Basic health check route
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'SD-Arcade API is running' });
 });
+
+// Serve Frontend Static Files in Production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/out')));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(__dirname, '../frontend/out', 'index.html'));
+  });
+}
 
 // Global Error Handler
 app.use(errorHandler);
