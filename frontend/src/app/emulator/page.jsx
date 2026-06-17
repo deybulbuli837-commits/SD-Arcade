@@ -41,6 +41,7 @@ function EmulatorView() {
   const nostalgistRef = useRef(null); // Need ref for socket callbacks
   const videoRef = useRef(null);
   const peerConnectionRef = useRef(null);
+  const dataChannelRef = useRef(null);
   const [webrtcStatus, setWebrtcStatus] = useState('');
 
   useEffect(() => {
@@ -58,6 +59,36 @@ function EmulatorView() {
 
     if (initLocked.current) return;
     initLocked.current = true;
+
+    // Monkey-patch AudioContext and AudioNode to reliably capture emulator audio for WebRTC
+    if (!window.__audioPatched && role === 'host' && multiplayer) {
+      window.__audioPatched = true;
+      
+      const OriginalAudioContext = window.AudioContext || window.webkitAudioContext;
+      if (OriginalAudioContext && !OriginalAudioContext.__isPatched) {
+        window.AudioContext = function(...args) {
+          const ctx = new OriginalAudioContext(...args);
+          if (!window.__globalMediaStreamDest) {
+            window.__globalMediaStreamDest = ctx.createMediaStreamDestination();
+          }
+          ctx.__mediaStreamDest = window.__globalMediaStreamDest;
+          return ctx;
+        };
+        window.AudioContext.__isPatched = true;
+      }
+
+      const originalConnect = AudioNode.prototype.connect;
+      AudioNode.prototype.connect = function (destination, ...args) {
+        if (destination === this.context.destination) {
+          if (!this.context.__mediaStreamDest) {
+            this.context.__mediaStreamDest = window.__globalMediaStreamDest || this.context.createMediaStreamDestination();
+            window.__globalMediaStreamDest = this.context.__mediaStreamDest;
+          }
+          originalConnect.call(this, this.context.__mediaStreamDest);
+        }
+        return originalConnect.call(this, destination, ...args);
+      };
+    }
 
     startTimeRef.current = Date.now();
     let blobUrl = null;
@@ -78,7 +109,14 @@ function EmulatorView() {
         try {
           const captureFn = canvasRef.current.captureStream || canvasRef.current.mozCaptureStream;
           if (captureFn) {
-            const stream = captureFn.call(canvasRef.current, 30);
+            const stream = captureFn.call(canvasRef.current, 60); // 60 FPS for smoother remote play
+            
+            // Add captured audio track to the video stream
+            if (window.__globalMediaStreamDest) {
+              const audioTracks = window.__globalMediaStreamDest.stream.getAudioTracks();
+              audioTracks.forEach(track => stream.addTrack(track));
+            }
+            
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
           } else {
             console.warn('captureStream is not supported by this browser.');
@@ -86,6 +124,22 @@ function EmulatorView() {
         } catch (e) {
           console.error('Failed to capture canvas stream:', e);
         }
+
+        // Create WebRTC Data Channel for ultra-low latency inputs
+        const dataChannel = pc.createDataChannel('inputs');
+        dataChannel.onmessage = (event) => {
+          if (!nostalgistRef.current) return;
+          try {
+            const { button, state, playerNum } = JSON.parse(event.data);
+            if (state === 'down') {
+              nostalgistRef.current.pressDown({ button, player: playerNum });
+            } else {
+              nostalgistRef.current.pressUp({ button, player: playerNum });
+            }
+          } catch (err) {
+            console.error('Data channel error:', err);
+          }
+        };
 
         const createAndSendOffer = async () => {
           try {
@@ -121,13 +175,18 @@ function EmulatorView() {
       } else {
         // Client receives tracks
         pc.ontrack = (event) => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = event.streams[0];
-            setWebrtcStatus('Stream Connected');
-            
-            // Auto-play might fail if unmuted, ensure it tries to play
-            videoRef.current.play().catch(e => console.error("Autoplay failed:", e));
+          if (videoRef.current && event.streams && event.streams[0]) {
+            if (videoRef.current.srcObject !== event.streams[0]) {
+              videoRef.current.srcObject = event.streams[0];
+              setWebrtcStatus('Stream Connected');
+              videoRef.current.play().catch(e => console.error("Autoplay failed:", e));
+            }
           }
+        };
+
+        // Listen for Data Channel
+        pc.ondatachannel = (event) => {
+          dataChannelRef.current = event.channel;
         };
 
         newSocket.on('webrtc_offer_receive', async ({ offer }) => {
@@ -236,15 +295,7 @@ function EmulatorView() {
         if (multiplayer && newSocket && role === 'host') {
           setupWebRTC(newSocket);
 
-          newSocket.on('netplay_signal_receive', ({ signal }) => {
-            if (!signal || !nostalgistRef.current) return;
-            const { button, state, playerNum } = signal;
-            if (state === 'down') {
-              nostalgistRef.current.pressDown({ button, player: playerNum });
-            } else {
-              nostalgistRef.current.pressUp({ button, player: playerNum });
-            }
-          });
+
 
           newSocket.on('netplay_pause_receive', () => {
             if (nostalgistRef.current) nostalgistRef.current.pause();
@@ -569,14 +620,10 @@ function EmulatorView() {
           platform={platform} 
           playerNum={multiplayer ? (role === 'host' ? 1 : 2) : 1}
           onInput={({ button, state }) => {
-            if (socket && multiplayer && roomId) {
-              const playerNum = role === 'host' ? 1 : 2;
-              const targetUserId = 'all'; // broadcast to everyone in room
-              socket.emit('netplay_signal', { 
-                roomId, 
-                targetUserId, 
-                signal: { button, state, playerNum } 
-              });
+            if (multiplayer && role === 'client') {
+              if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+                dataChannelRef.current.send(JSON.stringify({ button, state, playerNum: 2 }));
+              }
             }
           }}
         />

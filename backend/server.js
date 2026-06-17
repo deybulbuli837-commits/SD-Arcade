@@ -19,11 +19,13 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
-// CORS configuration - allow frontend origin
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+// CORS configuration - allow all origins dynamically
+const corsOptions = {
+  origin: (origin, callback) => callback(null, true),
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -35,11 +37,7 @@ import Room from './models/Room.js';
 // ... other routes
 // Socket.io
 const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ["GET", "POST"],
-    credentials: true
-  }
+  cors: corsOptions
 });
 
 io.on('connection', (socket) => {
@@ -148,7 +146,7 @@ if (process.env.NODE_ENV === 'production') {
 
   // Express 5.x drop support for app.get('*'), so we use a middleware fallback
   app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api/')) {
       res.sendFile(path.resolve(__dirname, '../frontend/out', 'index.html'));
     } else {
       next();
