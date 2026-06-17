@@ -1,24 +1,38 @@
 import mongoose from 'mongoose';
 
+const messageSchema = new mongoose.Schema({
+  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  senderName: { type: String, required: true },
+  text: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now }
+});
+
 const roomSchema = new mongoose.Schema({
+  roomId: { 
+    type: String, 
+    required: true, 
+    unique: true 
+  },
+  inviteCode: { 
+    type: String, 
+    required: true, 
+    unique: true 
+  },
   hostId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
     ref: 'User',
+    unique: true // A user can only host one room at a time
   },
-  romHash: {
-    type: String,
-    required: true,
+  joinerId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    default: null 
   },
-  joinCode: {
+  messages: [messageSchema],
+  selectedRomHash: {
     type: String,
-    required: true,
-    unique: true,
-  },
-  status: {
-    type: String,
-    enum: ['waiting', 'playing', 'closed'],
-    default: 'waiting',
+    default: null
   }
 }, {
   timestamps: true,

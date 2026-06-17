@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Navbar from '../../components/Navbar';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import VirtualController from '../../components/VirtualController';
-import { Settings as SettingsIcon, Save, Move } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Move, ArrowLeft } from 'lucide-react';
 import { getControllerConfig, saveControllerConfig } from '../../utils/controllerConfig';
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [config, setConfig] = useState(getControllerConfig());
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('layout'); // 'layout' | 'keys' | 'opacity'
@@ -112,9 +114,14 @@ export default function SettingsPage() {
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
       >
-        <div className="flex items-center gap-3 mb-8">
-          <SettingsIcon className="w-8 h-8 text-[#00f3ff]" />
-          <h1 className="text-3xl font-black neon-text tracking-tight">Controller Setup</h1>
+        <div className="flex items-center gap-4 mb-8">
+          <button onClick={() => router.push('/dashboard')} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white transition-colors" title="Back to Dashboard">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div className="flex items-center gap-3">
+            <SettingsIcon className="w-8 h-8 text-[#00f3ff]" />
+            <h1 className="text-3xl font-black neon-text tracking-tight">Controller Setup</h1>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
