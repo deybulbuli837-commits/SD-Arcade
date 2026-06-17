@@ -67,13 +67,13 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('start_game_request', async ({ roomId, romHash }) => {
+  socket.on('start_game_request', async ({ roomId, romHash, platform }) => {
     try {
       const room = await Room.findOne({ roomId });
       if (room) {
         room.selectedRomHash = romHash;
         await room.save();
-        io.to(roomId).emit('host_started_game', { romHash });
+        io.to(roomId).emit('host_started_game', { romHash, platform });
       }
     } catch (e) {
       console.error('Error starting game:', e);

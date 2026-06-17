@@ -82,9 +82,9 @@ function LobbyView() {
       setMessages(prev => [...prev, msg]);
     });
 
-    newSocket.on('host_started_game', async ({ romHash }) => {
+    newSocket.on('host_started_game', async ({ romHash, platform }) => {
       // Joiner no longer needs the ROM locally because of WebRTC Streaming!
-      router.push(`/emulator?hash=${romHash}&multiplayer=true&roomId=${roomId}&role=${roomRef.current?.hostId._id === user._id ? 'host' : 'client'}`);
+      router.push(`/emulator?hash=${romHash}&platform=${platform || ''}&multiplayer=true&roomId=${roomId}&role=${roomRef.current?.hostId._id === user._id ? 'host' : 'client'}`);
     });
 
     return () => newSocket.disconnect();
@@ -106,9 +106,9 @@ function LobbyView() {
     setChatInput('');
   };
 
-  const handleStartGame = (romHash) => {
+  const handleStartGame = (romHash, platform) => {
     if (!socket) return;
-    socket.emit('start_game_request', { roomId, romHash });
+    socket.emit('start_game_request', { roomId, romHash, platform });
   };
 
   const handleLeave = async () => {
@@ -191,7 +191,7 @@ function LobbyView() {
                   {roms.map(r => (
                     <button 
                       key={r.romHash}
-                      onClick={() => handleStartGame(r.romHash)}
+                      onClick={() => handleStartGame(r.romHash, r.platform)}
                       disabled={!isJoinerConnected}
                       className="w-full text-left bg-black/40 border border-white/10 hover:border-[#bc13fe] hover:bg-[#bc13fe]/10 p-3 rounded transition-colors disabled:opacity-50 flex justify-between items-center group"
                     >

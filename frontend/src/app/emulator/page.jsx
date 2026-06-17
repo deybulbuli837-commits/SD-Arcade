@@ -142,21 +142,28 @@ function EmulatorView() {
         };
 
         const createAndSendOffer = async () => {
+          if (pc.signalingState === 'closed') return;
           try {
+            if (pc.signalingState === 'have-local-offer' && pc.localDescription) {
+              // Resend existing offer if already created
+              newSocket.emit('webrtc_offer', { roomId, offer: pc.localDescription });
+              return;
+            }
+            
             setWebrtcStatus('Creating Offer...');
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             newSocket.emit('webrtc_offer', { roomId, offer });
           } catch (e) {
             console.error('Error creating offer', e);
-            setWebrtcStatus('Error Creating Offer');
+            if (pc.signalingState !== 'closed') {
+              setWebrtcStatus('Error Creating Offer');
+            }
           }
         };
 
-        // Send offer immediately for any waiting clients
-        createAndSendOffer();
-
-        // Send offer when joiner explicitly says they are ready
+        // Emit that host is ready, and create offer if Joiner says they are ready
+        newSocket.emit('webrtc_host_ready', { roomId });
         newSocket.on('webrtc_client_ready', createAndSendOffer);
         newSocket.on('user_joined_lobby', createAndSendOffer);
 
@@ -205,7 +212,23 @@ function EmulatorView() {
         // Notify host we are ready for the offer
         newSocket.emit('join_room_lobby', { roomId, userId: 'emulator_client', username: role });
         newSocket.emit('webrtc_client_ready', { roomId });
+        
+        // If host was already ready, this will trigger them
+        newSocket.on('webrtc_host_ready', () => {
+          newSocket.emit('webrtc_client_ready', { roomId });
+        });
       }
+
+      // Both Host and Client should handle connection drops
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+           setWebrtcStatus('Connection Lost');
+           if (role === 'client') {
+             alert('Connection to Host lost.');
+             window.location.href = `/multiplayer/lobby?roomId=${roomId}`;
+           }
+        }
+      };
 
       newSocket.on('webrtc_ice_candidate_receive', async ({ candidate }) => {
         try {
@@ -232,24 +255,25 @@ function EmulatorView() {
           }
         }
 
-        const res = await api.get('/roms');
-        const metadata = res.data.find((r) => r.romHash === hash);
+        // If Joiner, they don't have the ROM locally. We use the platform passed in the URL.
+        const urlPlatform = searchParams.get('platform');
         
-        if (!metadata) {
-          setError('ROM metadata not found.');
-          return;
+        let metadata = null;
+        if (role !== 'client') {
+          const res = await api.get('/roms');
+          metadata = res.data.find((r) => r.romHash === hash);
+          if (!metadata) {
+            setError('ROM metadata not found. Please re-upload in Dashboard.');
+            return;
+          }
+          setPlatform(metadata.platform);
+        } else if (urlPlatform) {
+          setPlatform(urlPlatform);
         }
-
-        setPlatform(metadata.platform);
 
         if (role === 'client') {
           // Client skips emulation and just sets up WebRTC
           if (newSocket) setupWebRTC(newSocket);
-          
-          newSocket.on('user_left_lobby', () => {
-            alert('Host disconnected from the game.');
-            window.location.href = `/multiplayer/lobby?roomId=${roomId}`;
-          });
           return;
         }
 
@@ -303,10 +327,6 @@ function EmulatorView() {
 
           newSocket.on('netplay_resume_receive', () => {
             if (nostalgistRef.current) nostalgistRef.current.resume();
-          });
-          
-          newSocket.on('user_left_lobby', () => {
-             setWebrtcStatus('Player 2 Disconnected');
           });
         }
 
