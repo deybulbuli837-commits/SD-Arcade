@@ -58,7 +58,8 @@ function LobbyView() {
   useEffect(() => {
     if (!user || !roomId) return;
 
-    const newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000');
+    const isProd = process.env.NODE_ENV === 'production';
+    const newSocket = io(isProd ? undefined : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'));
     setSocket(newSocket);
 
     newSocket.emit('join_room_lobby', { roomId, userId: user._id, username: user.username });

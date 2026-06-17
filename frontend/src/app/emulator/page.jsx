@@ -164,7 +164,8 @@ function EmulatorView() {
         let newSocket = null;
         if (multiplayer && roomId && role) {
           setWebrtcStatus('Connecting to Server...');
-          newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000');
+          const isProd = process.env.NODE_ENV === 'production';
+          newSocket = io(isProd ? undefined : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'));
           setSocket(newSocket);
           
           if (role === 'host') {
