@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Joystick } from 'react-joystick-component';
 import { getControllerConfig } from '../utils/controllerConfig';
 
-export default function VirtualController({ nostalgist, className = "absolute inset-0 z-50 pointer-events-none overflow-hidden", configOverride, platform }) {
+export default function VirtualController({ nostalgist, className = "absolute inset-0 z-50 pointer-events-none overflow-hidden", configOverride, platform, playerNum = 1, onInput }) {
   const [internalConfig, setInternalConfig] = useState(getControllerConfig());
   const config = configOverride || internalConfig;
   const activeDirections = useRef(new Set());
@@ -32,24 +32,31 @@ export default function VirtualController({ nostalgist, className = "absolute in
   // --- Turbo Engine ---
   const startTurbo = useCallback((targetButton) => {
     if (turboIntervals.current[targetButton]) return;
-    if (nostalgistRef.current) nostalgistRef.current.pressDown(targetButton);
+    if (nostalgistRef.current) nostalgistRef.current.pressDown(targetButton, playerNum);
+    if (onInput) onInput({ button: targetButton, state: 'down' });
     
     let isDown = true;
     turboIntervals.current[targetButton] = setInterval(() => {
       if (!nostalgistRef.current) return;
       isDown = !isDown;
-      if (isDown) nostalgistRef.current.pressDown(targetButton);
-      else nostalgistRef.current.pressUp(targetButton);
+      if (isDown) {
+        nostalgistRef.current.pressDown(targetButton, playerNum);
+        if (onInput) onInput({ button: targetButton, state: 'down' });
+      } else {
+        nostalgistRef.current.pressUp(targetButton, playerNum);
+        if (onInput) onInput({ button: targetButton, state: 'up' });
+      }
     }, 50);
-  }, []);
+  }, [playerNum, onInput]);
 
   const stopTurbo = useCallback((targetButton) => {
     if (turboIntervals.current[targetButton]) {
       clearInterval(turboIntervals.current[targetButton]);
       delete turboIntervals.current[targetButton];
-      if (nostalgistRef.current) nostalgistRef.current.pressUp(targetButton);
+      if (nostalgistRef.current) nostalgistRef.current.pressUp(targetButton, playerNum);
+      if (onInput) onInput({ button: targetButton, state: 'up' });
     }
-  }, []);
+  }, [playerNum, onInput]);
 
   const triggerPress = useCallback((button) => {
     if (!nostalgistRef.current) return;
@@ -57,8 +64,9 @@ export default function VirtualController({ nostalgist, className = "absolute in
       if (button === 'x') { startTurbo('a'); return; }
       if (button === 'y') { startTurbo('b'); return; }
     }
-    nostalgistRef.current.pressDown(button);
-  }, [platform, startTurbo]);
+    nostalgistRef.current.pressDown(button, playerNum);
+    if (onInput) onInput({ button, state: 'down' });
+  }, [platform, startTurbo, playerNum, onInput]);
 
   const triggerRelease = useCallback((button) => {
     if (!nostalgistRef.current) return;
@@ -66,8 +74,9 @@ export default function VirtualController({ nostalgist, className = "absolute in
       if (button === 'x') { stopTurbo('a'); return; }
       if (button === 'y') { stopTurbo('b'); return; }
     }
-    nostalgistRef.current.pressUp(button);
-  }, [platform, stopTurbo]);
+    nostalgistRef.current.pressUp(button, playerNum);
+    if (onInput) onInput({ button, state: 'up' });
+  }, [platform, stopTurbo, playerNum, onInput]);
 
   // Global Keyboard Listener
   useEffect(() => {

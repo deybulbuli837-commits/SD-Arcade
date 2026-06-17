@@ -5,19 +5,24 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { getRomLocally } from '../../lib/db';
 import api from '../../lib/axios';
-import { X, Maximize, RotateCcw, Save, Trash2, Download, UploadCloud, Loader2, Settings } from 'lucide-react';
+import { Maximize, Save, LogOut, Settings, RotateCcw } from 'lucide-react';
 import { Nostalgist } from 'nostalgist';
 import VirtualController from '../../components/VirtualController';
+import { io } from 'socket.io-client';
 
 function EmulatorView() {
   const searchParams = useSearchParams();
   const hash = searchParams.get('hash');
+  const multiplayer = searchParams.get('multiplayer') === 'true';
+  const roomId = searchParams.get('roomId');
+  const role = searchParams.get('role');
   const router = useRouter();
   
   const [error, setError] = useState('');
   const [isPortrait, setIsPortrait] = useState(false);
   const [nostalgistInst, setNostalgistInst] = useState(null);
   const [platform, setPlatform] = useState(null);
+  const [socket, setSocket] = useState(null);
   
   // Save States state
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
@@ -32,6 +37,10 @@ function EmulatorView() {
   const canvasRef = useRef(null);
   const startTimeRef = useRef(0);
   const initLocked = useRef(false);
+  const nostalgistRef = useRef(null); // Need ref for socket callbacks
+  const videoRef = useRef(null);
+  const peerConnectionRef = useRef(null);
+  const [webrtcStatus, setWebrtcStatus] = useState('');
 
   useEffect(() => {
     const checkOrientation = () => setIsPortrait(window.innerHeight > window.innerWidth);
@@ -41,7 +50,7 @@ function EmulatorView() {
   }, []);
 
   useEffect(() => {
-    if (!hash) {
+    if (!hash && role !== 'client') {
       setError('No ROM hash provided.');
       return;
     }
@@ -51,10 +60,129 @@ function EmulatorView() {
 
     startTimeRef.current = Date.now();
     let blobUrl = null;
-    let nInst = null;
+
+    const setupWebRTC = (newSocket) => {
+      const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+      const pc = new RTCPeerConnection(configuration);
+      peerConnectionRef.current = pc;
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          newSocket.emit('webrtc_ice_candidate', { roomId, candidate: event.candidate });
+        }
+      };
+
+      if (role === 'host') {
+        // Capture canvas stream safely
+        try {
+          const captureFn = canvasRef.current.captureStream || canvasRef.current.mozCaptureStream;
+          if (captureFn) {
+            const stream = captureFn.call(canvasRef.current, 30);
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+          } else {
+            console.warn('captureStream is not supported by this browser.');
+          }
+        } catch (e) {
+          console.error('Failed to capture canvas stream:', e);
+        }
+
+        const createAndSendOffer = async () => {
+          try {
+            setWebrtcStatus('Creating Offer...');
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            newSocket.emit('webrtc_offer', { roomId, offer });
+          } catch (e) {
+            console.error('Error creating offer', e);
+            setWebrtcStatus('Error Creating Offer');
+          }
+        };
+
+        // Send offer immediately for any waiting clients
+        createAndSendOffer();
+
+        // Send offer when joiner explicitly says they are ready
+        newSocket.on('webrtc_client_ready', createAndSendOffer);
+        newSocket.on('user_joined_lobby', createAndSendOffer);
+
+        newSocket.on('webrtc_answer_receive', async ({ answer }) => {
+          try {
+            setWebrtcStatus('Connected to Player 2');
+            const remoteDesc = new RTCSessionDescription(answer);
+            if (pc.signalingState !== 'stable') {
+              await pc.setRemoteDescription(remoteDesc);
+            }
+          } catch (e) {
+            console.error('Error setting remote answer', e);
+          }
+        });
+        
+      } else {
+        // Client receives tracks
+        pc.ontrack = (event) => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = event.streams[0];
+            setWebrtcStatus('Stream Connected');
+            
+            // Auto-play might fail if unmuted, ensure it tries to play
+            videoRef.current.play().catch(e => console.error("Autoplay failed:", e));
+          }
+        };
+
+        newSocket.on('webrtc_offer_receive', async ({ offer }) => {
+          try {
+            setWebrtcStatus('Receiving Video Stream...');
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            newSocket.emit('webrtc_answer', { roomId, answer });
+          } catch (e) {
+            console.error('Error handling offer', e);
+            setWebrtcStatus('Error Handling Offer');
+          }
+        });
+        
+        // Notify host we are ready for the offer
+        newSocket.emit('join_room_lobby', { roomId, userId: 'emulator_client', username: role });
+        newSocket.emit('webrtc_client_ready', { roomId });
+      }
+
+      newSocket.on('webrtc_ice_candidate_receive', async ({ candidate }) => {
+        try {
+          if (candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+        } catch (e) {
+          console.error('Error adding ICE candidate', e);
+        }
+      });
+    };
 
     const launchEmulator = async () => {
       try {
+        let newSocket = null;
+        if (multiplayer && roomId && role) {
+          setWebrtcStatus('Connecting to Server...');
+          newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000');
+          setSocket(newSocket);
+          
+          if (role === 'host') {
+            newSocket.emit('join_room_lobby', { roomId, userId: 'emulator_host', username: role });
+          }
+        }
+
+        if (role === 'client') {
+          // Client skips emulation and just sets up WebRTC
+          if (newSocket) setupWebRTC(newSocket);
+          
+          newSocket.on('user_left_lobby', () => {
+            alert('Host disconnected from the game.');
+            window.location.href = `/multiplayer/lobby?roomId=${roomId}`;
+          });
+          return;
+        }
+
+        // Host and Singleplayer Emulator Launch
         const blob = await getRomLocally(hash);
         if (!blob) {
           setError('ROM not found locally. Please return to the dashboard and re-upload.');
@@ -78,13 +206,40 @@ function EmulatorView() {
 
         blobUrl = URL.createObjectURL(blob);
 
-        nInst = await Nostalgist.launch({
+        const nInst = await Nostalgist.launch({
           core: core,
           rom: blobUrl,
           element: canvasRef.current,
         });
 
         setNostalgistInst(nInst);
+        nostalgistRef.current = nInst;
+
+        if (multiplayer && newSocket && role === 'host') {
+          setupWebRTC(newSocket);
+
+          newSocket.on('netplay_signal_receive', ({ signal }) => {
+            if (!signal || !nostalgistRef.current) return;
+            const { button, state, playerNum } = signal;
+            if (state === 'down') {
+              nostalgistRef.current.pressDown(button, playerNum);
+            } else {
+              nostalgistRef.current.pressUp(button, playerNum);
+            }
+          });
+
+          newSocket.on('netplay_pause_receive', () => {
+            if (nostalgistRef.current) nostalgistRef.current.pause();
+          });
+
+          newSocket.on('netplay_resume_receive', () => {
+            if (nostalgistRef.current) nostalgistRef.current.resume();
+          });
+          
+          newSocket.on('user_left_lobby', () => {
+             setWebrtcStatus('Player 2 Disconnected');
+          });
+        }
 
       } catch (err) {
         console.error(err);
@@ -96,14 +251,18 @@ function EmulatorView() {
 
     return () => {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
-      if (nInst) nInst.exit();
+      if (nostalgistRef.current) nostalgistRef.current.exit();
+      setSocket(s => { if (s) s.disconnect(); return null; });
+      if (peerConnectionRef.current) peerConnectionRef.current.close();
       
-      const playTimeSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      if (playTimeSeconds > 5) {
-        api.put(`/roms/${hash}/play`, { playTime: playTimeSeconds }).catch(console.error);
+      if (role !== 'client') {
+        const playTimeSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        if (playTimeSeconds > 5) {
+          api.put(`/roms/${hash}/play`, { playTime: playTimeSeconds }).catch(console.error);
+        }
       }
     };
-  }, [hash]);
+  }, [hash, multiplayer, roomId, role]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -115,14 +274,21 @@ function EmulatorView() {
 
   const handleExit = async () => {
     try {
-      const playTimeSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      if (playTimeSeconds > 1) {
-        await api.put(`/roms/${hash}/play`, { playTime: playTimeSeconds });
+      if (role !== 'client') {
+        const playTimeSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        if (playTimeSeconds > 1) {
+          await api.put(`/roms/${hash}/play`, { playTime: playTimeSeconds });
+        }
       }
     } catch (e) {
       console.error('Failed to save play stats:', e);
     }
-    window.location.href = '/dashboard';
+    
+    if (multiplayer && roomId) {
+      window.location.href = `/multiplayer/lobby?roomId=${roomId}`;
+    } else {
+      window.location.href = '/dashboard';
+    }
   };
 
   // --- SAVE STATES LOGIC ---
@@ -334,12 +500,14 @@ function EmulatorView() {
             <Maximize className="w-5 h-5 md:w-6 md:h-6" />
           </button>
           
-          <button onClick={openSaveModal} className="p-3 md:p-4 bg-black/60 rounded-full text-[#00f3ff] hover:bg-black/90 transition-all shadow-[0_0_15px_rgba(0,243,255,0.2)] backdrop-blur-md border border-[#00f3ff]/50 group relative" title="Save State">
-            <Save className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
+          {!multiplayer && (
+            <button onClick={openSaveModal} className="p-3 md:p-4 bg-black/60 rounded-full text-[#00f3ff] hover:bg-black/90 transition-all shadow-[0_0_15px_rgba(0,243,255,0.2)] backdrop-blur-md border border-[#00f3ff]/50 group relative" title="Save State">
+              <Save className="w-5 h-5 md:w-6 md:h-6" />
+            </button>
+          )}
           
           <button onClick={handleExit} className="p-3 md:p-4 bg-black/60 rounded-full text-white hover:text-red-400 hover:bg-black/90 transition-all shadow-lg backdrop-blur-md border border-white/10 group relative" title="Exit">
-            <X className="w-5 h-5 md:w-6 md:h-6" />
+            <LogOut className="w-5 h-5 md:w-6 md:h-6" />
           </button>
         </div>
 
@@ -353,15 +521,47 @@ function EmulatorView() {
       </div>
 
       <div ref={containerRef} className="flex-1 flex items-center justify-center w-full h-full relative p-2 md:p-4 overflow-hidden mt-8 md:mt-0">
+        
+        {multiplayer && webrtcStatus && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[80] bg-black/80 px-4 py-2 rounded-full border border-[#bc13fe]/50 text-[#bc13fe] text-xs font-bold font-mono tracking-widest shadow-[0_0_15px_rgba(188,19,254,0.3)] backdrop-blur-md animate-pulse">
+            {webrtcStatus}
+          </div>
+        )}
+
         <div className="relative w-full max-w-[1000px] h-full max-h-[65vh] md:max-h-full mx-auto bg-black border border-white/10 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,243,255,0.2)]">
-          <canvas 
-            ref={canvasRef} 
-            className="w-full h-full object-contain bg-black pointer-events-none" 
-            tabIndex="-1"
-          />
+          {role !== 'client' && (
+            <canvas 
+              ref={canvasRef} 
+              className="w-full h-full object-contain bg-black pointer-events-none" 
+              tabIndex="-1"
+            />
+          )}
+          {role === 'client' && (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-contain bg-black pointer-events-none"
+            />
+          )}
         </div>
 
-        <VirtualController nostalgist={nostalgistInst} platform={platform} />
+        <VirtualController 
+          nostalgist={nostalgistInst} 
+          platform={platform} 
+          playerNum={multiplayer ? (role === 'host' ? 1 : 2) : 1}
+          onInput={({ button, state }) => {
+            if (socket && multiplayer && roomId) {
+              const playerNum = role === 'host' ? 1 : 2;
+              const targetUserId = 'all'; // broadcast to everyone in room
+              socket.emit('netplay_signal', { 
+                roomId, 
+                targetUserId, 
+                signal: { button, state, playerNum } 
+              });
+            }
+          }}
+        />
       </div>
     </div>
   );

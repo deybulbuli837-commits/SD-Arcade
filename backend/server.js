@@ -29,7 +29,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Socket.io Placeholder
+import roomRoutes from './routes/roomRoutes.js';
+import Room from './models/Room.js';
+
+// ... other routes
+// Socket.io
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -41,9 +45,83 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
   
-  // Future: Room logic placeholders
+  socket.on('join_room_lobby', async ({ roomId, userId, username }) => {
+    socket.join(roomId);
+    socket.roomId = roomId;
+    socket.userId = userId;
+    socket.username = username;
+    
+    // Broadcast user joined
+    io.to(roomId).emit('user_joined_lobby', { userId, username });
+  });
+
+  socket.on('send_message', async ({ roomId, senderId, senderName, text }) => {
+    try {
+      const room = await Room.findOne({ roomId });
+      if (room) {
+        const msg = { senderId, senderName, text, timestamp: new Date() };
+        room.messages.push(msg);
+        await room.save();
+        io.to(roomId).emit('receive_message', msg);
+      }
+    } catch (e) {
+      console.error('Error saving message:', e);
+    }
+  });
+
+  socket.on('start_game_request', async ({ roomId, romHash }) => {
+    try {
+      const room = await Room.findOne({ roomId });
+      if (room) {
+        room.selectedRomHash = romHash;
+        await room.save();
+        io.to(roomId).emit('host_started_game', { romHash });
+      }
+    } catch (e) {
+      console.error('Error starting game:', e);
+    }
+  });
+  
+  // WebRTC Netplay Signaling (Relayed through Socket.io)
+  socket.on('netplay_signal', ({ roomId, targetUserId, signal }) => {
+    socket.to(roomId).emit('netplay_signal_receive', { senderId: socket.userId, targetUserId, signal });
+  });
+
+  // WebRTC Video Stream Signaling
+  socket.on('webrtc_offer', ({ roomId, offer }) => {
+    socket.to(roomId).emit('webrtc_offer_receive', { offer });
+  });
+
+  socket.on('webrtc_answer', ({ roomId, answer }) => {
+    socket.to(roomId).emit('webrtc_answer_receive', { answer });
+  });
+
+  socket.on('webrtc_ice_candidate', ({ roomId, candidate }) => {
+    socket.to(roomId).emit('webrtc_ice_candidate_receive', { candidate });
+  });
+
+  socket.on('webrtc_host_ready', ({ roomId }) => {
+    socket.to(roomId).emit('webrtc_host_ready');
+  });
+
+  socket.on('webrtc_client_ready', ({ roomId }) => {
+    socket.to(roomId).emit('webrtc_client_ready');
+  });
+
+  // Pausing sync
+  socket.on('netplay_pause', ({ roomId }) => {
+    socket.to(roomId).emit('netplay_pause_receive');
+  });
+
+  socket.on('netplay_resume', ({ roomId }) => {
+    socket.to(roomId).emit('netplay_resume_receive');
+  });
+
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
+    if (socket.roomId && socket.userId) {
+      io.to(socket.roomId).emit('user_left_lobby', { userId: socket.userId, username: socket.username });
+    }
   });
 });
 
@@ -51,6 +129,7 @@ io.on('connection', (socket) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/roms', romRoutes);
 app.use('/api/saves', saveRoutes);
+app.use('/api/rooms', roomRoutes);
 
 import path from 'path';
 import { fileURLToPath } from 'url';

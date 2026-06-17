@@ -8,9 +8,10 @@ import Navbar from '../../components/Navbar';
 import { generateRomHash, detectPlatform } from '../../utils/romUtils';
 import { saveRomLocally, checkRomExistsLocally } from '../../lib/db';
 import { motion } from 'framer-motion';
-import { Upload, Play, Clock, Monitor } from 'lucide-react';
+import { Upload, Play, Clock, Monitor, Users, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import api from '../../lib/axios';
 
 export default function DashboardPage() {
   const dispatch = useDispatch();
@@ -20,10 +21,63 @@ export default function DashboardPage() {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Multiplayer State
+  const [rooms, setRooms] = useState([]);
+  const [joinCode, setJoinCode] = useState('');
+  const [roomError, setRoomError] = useState('');
+  const [roomLoading, setRoomLoading] = useState(false);
 
   useEffect(() => {
     dispatch(fetchRoms());
+    fetchRooms();
   }, [dispatch]);
+
+  const fetchRooms = async () => {
+    try {
+      const { data } = await api.get('/rooms');
+      setRooms(data);
+    } catch (e) {
+      console.error('Failed to fetch rooms', e);
+    }
+  };
+
+  const handleCreateRoom = async () => {
+    try {
+      setRoomLoading(true);
+      setRoomError('');
+      await api.post('/rooms');
+      await fetchRooms();
+    } catch (e) {
+      setRoomError(e.response?.data?.message || 'Failed to create room');
+    } finally {
+      setRoomLoading(false);
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    if (!joinCode.trim()) return;
+    try {
+      setRoomLoading(true);
+      setRoomError('');
+      await api.post('/rooms/join', { inviteCode: joinCode.trim() });
+      setJoinCode('');
+      await fetchRooms();
+    } catch (e) {
+      setRoomError(e.response?.data?.message || 'Failed to join room');
+    } finally {
+      setRoomLoading(false);
+    }
+  };
+
+  const handleDeleteRoom = async (roomId) => {
+    try {
+      await api.delete(`/rooms/${roomId}`);
+      await fetchRooms();
+    } catch (e) {
+      console.error('Delete failed', e);
+    }
+  };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -67,6 +121,8 @@ export default function DashboardPage() {
 
   const lastPlayedRom = user?.lastPlayedRomHash ? roms.find(r => r.romHash === user.lastPlayedRomHash) : null;
   const recentlyPlayed = [...roms].sort((a, b) => new Date(b.lastPlayedAt || 0).getTime() - new Date(a.lastPlayedAt || 0).getTime()).slice(0, 3);
+
+  if (!user) return null;
 
   return (
     <ProtectedRoute>
@@ -190,6 +246,77 @@ export default function DashboardPage() {
 
           {/* Sidebar */}
           <div className="space-y-8">
+            
+            {/* Multiplayer Rooms */}
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="glass-card p-6 border border-[#bc13fe]/30">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-[#bc13fe]">
+                <Users className="w-5 h-5" /> Multiplayer
+              </h2>
+              
+              {roomError && <p className="text-red-400 text-xs mb-3">{roomError}</p>}
+
+              {rooms.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Your Active Rooms</p>
+                  {rooms.map(room => (
+                    <div key={room.roomId} className="bg-black/40 border border-white/10 rounded-lg p-3 relative group">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold text-[#00f3ff]">Room: {room.roomId.substring(0,6)}</span>
+                        {room.hostId._id === user._id && (
+                          <button onClick={() => handleDeleteRoom(room.roomId)} className="text-red-500/50 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-300 mb-3 space-y-1">
+                        <p>Host: {room.hostId.username} {room.hostId._id === user._id && '(You)'}</p>
+                        <p>Joiner: {room.joinerId ? room.joinerId.username : <span className="text-gray-500 italic">Waiting...</span>}</p>
+                      </div>
+                      <Link 
+                        href={`/multiplayer/lobby?roomId=${room.roomId}`}
+                        className="block w-full text-center py-2 bg-[#bc13fe]/20 text-[#bc13fe] border border-[#bc13fe]/50 rounded text-sm font-bold hover:bg-[#bc13fe]/40 transition-colors"
+                      >
+                        Enter Lobby
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-4 pt-4 border-t border-white/10">
+                <button 
+                  onClick={handleCreateRoom}
+                  disabled={roomLoading || rooms.some(r => r.hostId._id === user._id)}
+                  className="w-full py-2.5 bg-[#bc13fe]/20 text-[#bc13fe] border border-[#bc13fe]/50 rounded font-bold hover:bg-[#bc13fe]/40 transition-colors disabled:opacity-50"
+                  title={rooms.some(r => r.hostId._id === user._id) ? "You already have an active room hosted." : ""}
+                >
+                  {roomLoading ? 'Creating...' : 'Host a Room'}
+                </button>
+                <div className="relative flex items-center py-2">
+                  <div className="flex-grow border-t border-white/10"></div>
+                  <span className="flex-shrink-0 mx-4 text-white/30 text-xs font-bold uppercase">or</span>
+                  <div className="flex-grow border-t border-white/10"></div>
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Invite Code"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    className="flex-1 bg-black/50 border border-white/20 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f3ff] uppercase"
+                    maxLength={6}
+                  />
+                  <button 
+                    onClick={handleJoinRoom}
+                    disabled={roomLoading || !joinCode.trim()}
+                    className="px-4 py-2 bg-[#00f3ff]/20 text-[#00f3ff] border border-[#00f3ff]/50 rounded font-bold hover:bg-[#00f3ff]/40 transition-colors disabled:opacity-50 text-sm"
+                  >
+                    Join
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+
             {/* Continue Playing */}
             {lastPlayedRom && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="glass-card p-6 neon-border relative overflow-hidden">
