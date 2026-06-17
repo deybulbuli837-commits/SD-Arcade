@@ -40,7 +40,12 @@ export default function LoginPage() {
         animate={{ opacity: 1, scale: 1 }}
         className="glass-card w-full max-w-md p-8"
       >
-        <h2 className="text-3xl font-black mb-6 text-center neon-text">WELCOME BACK</h2>
+        <h2 
+          className="text-3xl font-black mb-6 text-center neon-text text-white tracking-tighter"
+          style={{ textShadow: "2px 2px 0px #bc13fe, 4px 4px 0px #00f3ff" }}
+        >
+          SD-Arcade
+        </h2>
         
         {error && (
           <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded mb-6 text-sm">

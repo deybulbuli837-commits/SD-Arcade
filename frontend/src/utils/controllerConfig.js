@@ -1,6 +1,6 @@
 export const DEFAULT_CONTROLLER_CONFIG = {
   opacity: 0.8,
-  dpadType: 'typeA', // 'typeA' = Analog Joystick, 'typeB' = Classic Cross
+  dpadType: 'typeA', // 'typeA' = Analog Joystick, 'typeB' = Classic Cross, 'typeC' = Floating Touch
   joystick: { 
     left: 10, top: 60, scale: 1, 
     keys: { up: 'w', down: 's', left: 'a', right: 'd' } 

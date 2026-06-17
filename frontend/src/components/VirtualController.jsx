@@ -4,6 +4,26 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Joystick } from 'react-joystick-component';
 import { getControllerConfig } from '../utils/controllerConfig';
 
+const ActionButton = ({ label, buttonKey, pcKey, color = 'bg-[#bc13fe]', triggerPress, triggerRelease, isTouchDevice }) => (
+  <div className="relative pointer-events-auto touch-none">
+    <button
+      data-action-btn={buttonKey}
+      onPointerDown={(e) => { if (e.pointerType === 'mouse') triggerPress(buttonKey); }}
+      onPointerUp={(e) => { if (e.pointerType === 'mouse') triggerRelease(buttonKey); }}
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') triggerRelease(buttonKey); }}
+      onContextMenu={(e) => e.preventDefault()}
+      className={`w-14 h-14 rounded-full ${color} flex items-center justify-center text-white font-bold text-xl shadow-[0_0_15px_rgba(188,19,254,0.3)] transition-transform select-none touch-none opacity-90`}
+    >
+      {label}
+    </button>
+    {!isTouchDevice && (
+      <span className="hidden lg:block absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-white/50 font-mono font-bold bg-black/60 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none uppercase">
+        {pcKey}
+      </span>
+    )}
+  </div>
+);
+
 export default function VirtualController({ nostalgist, className = "absolute inset-0 z-50 pointer-events-none overflow-hidden", configOverride, platform, playerNum = 1, onInput }) {
   const [internalConfig, setInternalConfig] = useState(getControllerConfig());
   const config = configOverride || internalConfig;
@@ -11,6 +31,11 @@ export default function VirtualController({ nostalgist, className = "absolute in
   const pressedKeys = useRef(new Set()); // Track physical keyboard keys
   const turboIntervals = useRef({});
   const nostalgistRef = useRef(nostalgist);
+  const previousGamepadState = useRef({});
+
+  const [floatingAnchor, setFloatingAnchor] = useState(null);
+  const [floatingPos, setFloatingPos] = useState(null);
+  const floatingDeadzone = 20;
 
   useEffect(() => {
     nostalgistRef.current = nostalgist;
@@ -140,21 +165,122 @@ export default function VirtualController({ nostalgist, className = "absolute in
     };
   }, [nostalgist, config, triggerPress, triggerRelease, onInput]);
 
+  // Gamepad API Polling
+  useEffect(() => {
+    if (!nostalgist && !onInput) return;
+    
+    let animationFrameId;
+
+    const pollGamepads = () => {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const pad = Array.from(gamepads).find(g => g && g.connected);
+      if (pad) {
+        const buttonMapping = {
+          0: 'b',
+          1: 'a',
+          2: 'y',
+          3: 'x',
+          4: 'l',
+          5: 'r',
+          8: 'select',
+          9: 'start',
+          12: 'up',
+          13: 'down',
+          14: 'left',
+          15: 'right'
+        };
+
+        const currentPadState = {};
+        pad.buttons.forEach((btn, index) => {
+          if (buttonMapping[index]) {
+            currentPadState[buttonMapping[index]] = btn.pressed;
+          }
+        });
+
+        const deadzone = 0.5;
+        if (pad.axes[0] < -deadzone) currentPadState['left'] = true;
+        if (pad.axes[0] > deadzone) currentPadState['right'] = true;
+        if (pad.axes[1] < -deadzone) currentPadState['up'] = true;
+        if (pad.axes[1] > deadzone) currentPadState['down'] = true;
+
+        Object.keys(buttonMapping).forEach(key => {
+          const btnName = buttonMapping[key];
+          const isPressed = currentPadState[btnName] || false;
+          const wasPressed = previousGamepadState.current[btnName] || false;
+          
+          if (isPressed && !wasPressed) triggerPress(btnName);
+          else if (!isPressed && wasPressed) triggerRelease(btnName);
+          
+          previousGamepadState.current[btnName] = isPressed;
+        });
+      }
+      animationFrameId = requestAnimationFrame(pollGamepads);
+    };
+
+    pollGamepads();
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [nostalgist, onInput, triggerPress, triggerRelease]);
+
+  // Floating Touch Handlers
+  const handleFloatingTouchStart = useCallback((e) => {
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    setFloatingAnchor({ x: touch.clientX, y: touch.clientY });
+    setFloatingPos({ x: touch.clientX, y: touch.clientY });
+  }, []);
+
+  const handleFloatingTouchMove = useCallback((e) => {
+    e.preventDefault();
+    if (!floatingAnchor) return;
+    const touch = e.changedTouches[0];
+    setFloatingPos({ x: touch.clientX, y: touch.clientY });
+
+    const dx = touch.clientX - floatingAnchor.x;
+    const dy = touch.clientY - floatingAnchor.y;
+    
+    const newDirections = new Set();
+    if (dx < -floatingDeadzone) newDirections.add('left');
+    if (dx > floatingDeadzone) newDirections.add('right');
+    if (dy < -floatingDeadzone) newDirections.add('up');
+    if (dy > floatingDeadzone) newDirections.add('down');
+
+    newDirections.forEach(dir => {
+      if (!activeDirections.current.has(dir)) triggerPress(dir);
+    });
+    activeDirections.current.forEach(dir => {
+      if (!newDirections.has(dir)) triggerRelease(dir);
+    });
+    activeDirections.current = newDirections;
+  }, [floatingAnchor, triggerPress, triggerRelease]);
+
+  const handleFloatingTouchEnd = useCallback((e) => {
+    e.preventDefault();
+    setFloatingAnchor(null);
+    setFloatingPos(null);
+    activeDirections.current.forEach(dir => triggerRelease(dir));
+    activeDirections.current.clear();
+  }, [triggerRelease]);
+
   const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   useEffect(() => {
-    setIsTouchDevice(typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches);
+    if (typeof window !== 'undefined') {
+      const checkTouch = () => {
+        setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+      };
+      checkTouch();
+      window.addEventListener('resize', checkTouch);
+      return () => window.removeEventListener('resize', checkTouch);
+    }
   }, []);
 
   const handleJoystickMove = (e) => {
     if (!nostalgistRef.current) return;
     const newDirections = new Set();
     
-    // react-joystick-component 'x' and 'y' could be pixels (e.g. 0 to 60) or normalized (0 to 1).
     const x = e.x || 0;
     const y = e.y || 0;
     
-    // Detect if the values are normalized or pixel-based
     const isNormalized = Math.abs(x) <= 1.5 && Math.abs(y) <= 1.5;
     const threshold = isNormalized ? 0.2 : 5;
     
@@ -163,7 +289,6 @@ export default function VirtualController({ nostalgist, className = "absolute in
     if (x > threshold) newDirections.add('right');
     if (x < -threshold) newDirections.add('left');
 
-    // Fallback: Use direct string matching if coordinate math fails
     if (newDirections.size === 0 && e.direction) {
       if (e.direction === 'FORWARD') newDirections.add('up');
       if (e.direction === 'BACKWARD') newDirections.add('down');
@@ -190,12 +315,11 @@ export default function VirtualController({ nostalgist, className = "absolute in
   const activeTouchButtons = useRef(new Set());
 
   useEffect(() => {
-    if (!isTouchDevice) return; // Only apply global touch logic on mobile
+    if (!isTouchDevice) return; 
     
     const handleTouch = (e) => {
       const newActive = new Set();
       
-      // Map all current touches to underlying elements
       for (let i = 0; i < e.touches.length; i++) {
         const touch = e.touches[i];
         const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
@@ -208,14 +332,12 @@ export default function VirtualController({ nostalgist, className = "absolute in
         });
       }
 
-      // Fire presses for new buttons
       newActive.forEach(btn => {
         if (!activeTouchButtons.current.has(btn)) {
           triggerPress(btn);
         }
       });
       
-      // Fire releases for buttons no longer touched
       activeTouchButtons.current.forEach(btn => {
         if (!newActive.has(btn)) {
           triggerRelease(btn);
@@ -236,36 +358,42 @@ export default function VirtualController({ nostalgist, className = "absolute in
       window.removeEventListener('touchend', handleTouch);
       window.removeEventListener('touchcancel', handleTouch);
       
-      // Failsafe release
       activeTouchButtons.current.forEach(btn => triggerRelease(btn));
       activeTouchButtons.current.clear();
     };
   }, [triggerPress, triggerRelease, isTouchDevice]);
 
-  const ActionButton = ({ label, buttonKey, pcKey, color = 'bg-[#bc13fe]' }) => (
-    <div className="relative pointer-events-auto touch-none">
-      <button
-        data-action-btn={buttonKey}
-        onPointerDown={(e) => { if (e.pointerType === 'mouse') triggerPress(buttonKey); }}
-        onPointerUp={(e) => { if (e.pointerType === 'mouse') triggerRelease(buttonKey); }}
-        onPointerLeave={(e) => { if (e.pointerType === 'mouse') triggerRelease(buttonKey); }}
-        onContextMenu={(e) => e.preventDefault()}
-        className={`w-14 h-14 rounded-full ${color} flex items-center justify-center text-white font-bold text-xl shadow-[0_0_15px_rgba(188,19,254,0.3)] transition-transform select-none touch-none opacity-90`}
-      >
-        {label}
-      </button>
-      {!isTouchDevice && (
-        <span className="hidden lg:block absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-white/50 font-mono font-bold bg-black/60 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none uppercase">
-          {pcKey}
-        </span>
-      )}
-    </div>
-  );
-
   return (
     <div className={className} style={{ opacity: config.opacity }}>
       <div className="w-full h-full pointer-events-none relative">
         
+        {/* Floating D-Pad Hit Zone (Type C) */}
+        {config.dpadType === 'typeC' && (
+          <div 
+            className="absolute left-0 top-0 w-1/2 h-full z-40 touch-none pointer-events-auto"
+            onTouchStart={handleFloatingTouchStart}
+            onTouchMove={handleFloatingTouchMove}
+            onTouchEnd={handleFloatingTouchEnd}
+            onTouchCancel={handleFloatingTouchEnd}
+          />
+        )}
+        
+        {/* Floating D-Pad Visual Indicator */}
+        {floatingAnchor && config.dpadType === 'typeC' && (
+          <div 
+            className="absolute w-24 h-24 rounded-full border-2 border-white/30 bg-black/40 pointer-events-none z-50 shadow-[0_0_20px_rgba(0,243,255,0.3)] backdrop-blur-sm"
+            style={{ left: floatingAnchor.x - 48, top: floatingAnchor.y - 48 }}
+          >
+            <div 
+              className="absolute w-10 h-10 rounded-full bg-white/80 shadow-[0_0_15px_rgba(255,255,255,0.8)]"
+              style={{ 
+                left: 48 + (floatingPos.x - floatingAnchor.x) - 20, 
+                top: 48 + (floatingPos.y - floatingAnchor.y) - 20 
+              }}
+            />
+          </div>
+        )}
+
         {/* Shoulder L */}
         <div className="absolute pointer-events-auto touch-none" style={{ left: `${config.shoulderL.left}%`, top: `${config.shoulderL.top}%`, transform: `scale(${config.shoulderL.scale})` }}>
           <button
@@ -297,7 +425,8 @@ export default function VirtualController({ nostalgist, className = "absolute in
         </div>
 
         {/* Joystick or Classic D-Pad */}
-        <div className="absolute touch-none opacity-90 pointer-events-none" style={{ left: `${config.joystick.left}%`, top: `${config.joystick.top}%`, transform: `scale(${config.joystick.scale})`, width: '120px', height: '120px', marginLeft: '-60px', marginTop: '-60px' }}>
+        {config.dpadType !== 'typeC' && (
+          <div className="absolute touch-none opacity-90 pointer-events-none" style={{ left: `${config.joystick.left}%`, top: `${config.joystick.top}%`, transform: `scale(${config.joystick.scale})`, width: '120px', height: '120px', marginLeft: '-60px', marginTop: '-60px' }}>
           {config.dpadType === 'typeB' ? (
             <div className="relative w-full h-full">
               {/* Background Plate */}
@@ -361,6 +490,7 @@ export default function VirtualController({ nostalgist, className = "absolute in
             </div>
           )}
         </div>
+        )}
 
         {/* System Buttons */}
         <div className="absolute flex gap-4 pointer-events-auto opacity-80" style={{ left: `${config.system.left}%`, top: `${config.system.top}%`, transform: `scale(${config.system.scale})` }}>
@@ -394,16 +524,16 @@ export default function VirtualController({ nostalgist, className = "absolute in
 
         {/* Independent Action Buttons */}
         <div className="absolute pointer-events-auto" style={{ left: `${config.actionX.left}%`, top: `${config.actionX.top}%`, transform: `scale(${config.actionX.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
-          <ActionButton label="X" buttonKey="x" pcKey={config.actionX.keys.x} color="bg-[#00f3ff]/80" />
+          <ActionButton label="X" buttonKey="x" pcKey={config.actionX.keys.x} color="bg-[#00f3ff]/80" triggerPress={triggerPress} triggerRelease={triggerRelease} isTouchDevice={isTouchDevice} />
         </div>
         <div className="absolute pointer-events-auto" style={{ left: `${config.actionY.left}%`, top: `${config.actionY.top}%`, transform: `scale(${config.actionY.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
-          <ActionButton label="Y" buttonKey="y" pcKey={config.actionY.keys.y} color="bg-[#00f3ff]/80" />
+          <ActionButton label="Y" buttonKey="y" pcKey={config.actionY.keys.y} color="bg-[#00f3ff]/80" triggerPress={triggerPress} triggerRelease={triggerRelease} isTouchDevice={isTouchDevice} />
         </div>
         <div className="absolute pointer-events-auto" style={{ left: `${config.actionA.left}%`, top: `${config.actionA.top}%`, transform: `scale(${config.actionA.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
-          <ActionButton label="A" buttonKey="a" pcKey={config.actionA.keys.a} color="bg-[#bc13fe]/80" />
+          <ActionButton label="A" buttonKey="a" pcKey={config.actionA.keys.a} color="bg-[#bc13fe]/80" triggerPress={triggerPress} triggerRelease={triggerRelease} isTouchDevice={isTouchDevice} />
         </div>
         <div className="absolute pointer-events-auto" style={{ left: `${config.actionB.left}%`, top: `${config.actionB.top}%`, transform: `scale(${config.actionB.scale})`, marginLeft: '-28px', marginTop: '-28px' }}>
-          <ActionButton label="B" buttonKey="b" pcKey={config.actionB.keys.b} color="bg-[#bc13fe]/80" />
+          <ActionButton label="B" buttonKey="b" pcKey={config.actionB.keys.b} color="bg-[#bc13fe]/80" triggerPress={triggerPress} triggerRelease={triggerRelease} isTouchDevice={isTouchDevice} />
         </div>
 
       </div>

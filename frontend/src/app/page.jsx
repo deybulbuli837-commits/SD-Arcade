@@ -17,7 +17,10 @@ export default function LandingPage() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-4xl mx-auto mb-16"
       >
-        <h1 className="text-6xl sm:text-8xl font-black mb-6 neon-text tracking-tighter">
+        <h1 
+          className="text-6xl sm:text-8xl font-black mb-6 neon-text tracking-tighter"
+          style={{ textShadow: "4px 4px 0px #bc13fe, 8px 8px 0px #00f3ff" }}
+        >
           SD-Arcade
         </h1>
         <p className="text-2xl sm:text-3xl text-gray-300 font-medium mb-10">

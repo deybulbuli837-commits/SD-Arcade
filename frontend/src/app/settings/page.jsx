@@ -77,10 +77,11 @@ export default function SettingsPage() {
   };
 
   // Helper to render Draggable Blocks over the Preview
-  const DraggableOverlay = ({ groupName, label }) => {
+  const renderDraggableOverlay = (groupName) => {
     const isDragging = draggingGroup === groupName;
     return (
       <div 
+        key={groupName}
         className={`absolute w-12 h-12 -ml-6 -mt-6 rounded-full flex items-center justify-center cursor-move transition-colors z-[60] ${isDragging ? 'bg-[#bc13fe]/80 border-2 border-white' : 'bg-[#00f3ff]/40 hover:bg-[#00f3ff]/80 border border-[#00f3ff]'}`}
         style={{ left: `${config[groupName].left}%`, top: `${config[groupName].top}%` }}
         onPointerDown={(e) => handlePointerDown(groupName, e)}
@@ -90,17 +91,16 @@ export default function SettingsPage() {
     );
   };
 
-  const KeyBindInput = ({ group, action, label }) => (
-    <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
+  const renderKeyBindInput = (group, action, label) => (
+    <div key={`${group}-${action}`} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
       <span className="font-bold text-gray-300 w-24">{label}</span>
       <input 
         type="text" 
         value={config[group].keys[action].toUpperCase()} 
         readOnly
         onKeyDown={(e) => handleKeyRebind(group, action, e)}
-        className="bg-black border border-[#00f3ff]/50 rounded text-center text-[#00f3ff] font-mono font-bold py-1 w-24 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#bc13fe]"
-        placeholder="Press key..."
-        title="Click and press any key to rebind"
+        className="bg-black/50 border border-white/20 text-white font-mono font-bold text-center w-24 py-1 rounded focus:outline-none focus:border-[#bc13fe] focus:shadow-[0_0_10px_rgba(188,19,254,0.5)] cursor-pointer"
+        placeholder="Press Key"
       />
     </div>
   );
@@ -158,6 +158,12 @@ export default function SettingsPage() {
                     >
                       Type B (Cross)
                     </button>
+                    <button 
+                      onClick={() => setConfig(prev => ({ ...prev, dpadType: 'typeC' }))}
+                      className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${config.dpadType === 'typeC' ? 'bg-[#00f3ff] text-black shadow-[0_0_10px_rgba(0,243,255,0.4)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    >
+                      Type C (Floating)
+                    </button>
                   </div>
                 </div>
 
@@ -182,28 +188,30 @@ export default function SettingsPage() {
               <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                 <p className="text-gray-400 text-sm">Click an input box and press a key to rebind it.</p>
                 
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-[#bc13fe] uppercase border-b border-[#bc13fe]/30 pb-1">D-Pad / Joystick</h3>
-                  <KeyBindInput group="joystick" action="up" label="Up" />
-                  <KeyBindInput group="joystick" action="down" label="Down" />
-                  <KeyBindInput group="joystick" action="left" label="Left" />
-                  <KeyBindInput group="joystick" action="right" label="Right" />
-                </div>
+                <div className="space-y-4">
+                  <h3 className="text-[#00f3ff] font-bold uppercase tracking-widest text-xs">Movement</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {renderKeyBindInput('joystick', 'up', 'Up')}
+                    {renderKeyBindInput('joystick', 'down', 'Down')}
+                    {renderKeyBindInput('joystick', 'left', 'Left')}
+                    {renderKeyBindInput('joystick', 'right', 'Right')}
+                  </div>
+                  
+                  <h3 className="text-[#00f3ff] font-bold uppercase tracking-widest text-xs pt-4 border-t border-white/10">Action Buttons</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {renderKeyBindInput('actionB', 'b', 'B (Nintendo A)')}
+                    {renderKeyBindInput('actionA', 'a', 'A (Nintendo B)')}
+                    {renderKeyBindInput('actionY', 'y', 'Y (Nintendo X)')}
+                    {renderKeyBindInput('actionX', 'x', 'X (Nintendo Y)')}
+                  </div>
 
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-[#bc13fe] uppercase border-b border-[#bc13fe]/30 pb-1">Action Buttons</h3>
-                  <KeyBindInput group="actionA" action="a" label="A Button" />
-                  <KeyBindInput group="actionB" action="b" label="B Button" />
-                  <KeyBindInput group="actionX" action="x" label="X Button" />
-                  <KeyBindInput group="actionY" action="y" label="Y Button" />
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-[#bc13fe] uppercase border-b border-[#bc13fe]/30 pb-1">Shoulders & System</h3>
-                  <KeyBindInput group="shoulderL" action="l" label="L Bumper" />
-                  <KeyBindInput group="shoulderR" action="r" label="R Bumper" />
-                  <KeyBindInput group="system" action="start" label="Start" />
-                  <KeyBindInput group="system" action="select" label="Select" />
+                  <h3 className="text-[#00f3ff] font-bold uppercase tracking-widest text-xs pt-4 border-t border-white/10">Shoulders & System</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {renderKeyBindInput('shoulderL', 'l', 'L Bumper')}
+                    {renderKeyBindInput('shoulderR', 'r', 'R Bumper')}
+                    {renderKeyBindInput('system', 'select', 'Select')}
+                    {renderKeyBindInput('system', 'start', 'Start')}
+                  </div>
                 </div>
               </div>
             )}
@@ -261,14 +269,14 @@ export default function SettingsPage() {
 
                 {activeTab === 'layout' && !isFullscreen && (
                   <>
-                    <DraggableOverlay groupName="shoulderL" />
-                    <DraggableOverlay groupName="shoulderR" />
-                    <DraggableOverlay groupName="joystick" />
-                    <DraggableOverlay groupName="actionA" />
-                    <DraggableOverlay groupName="actionB" />
-                    <DraggableOverlay groupName="actionX" />
-                    <DraggableOverlay groupName="actionY" />
-                    <DraggableOverlay groupName="system" />
+                    {renderDraggableOverlay('shoulderL')}
+                    {renderDraggableOverlay('shoulderR')}
+                    {renderDraggableOverlay('joystick')}
+                    {renderDraggableOverlay('actionA')}
+                    {renderDraggableOverlay('actionB')}
+                    {renderDraggableOverlay('actionX')}
+                    {renderDraggableOverlay('actionY')}
+                    {renderDraggableOverlay('system')}
                   </>
                 )}
               </div>
@@ -312,14 +320,18 @@ export default function SettingsPage() {
 
           <div ref={previewRef} className="absolute inset-0">
             <VirtualController nostalgist={null} className="absolute inset-0 z-40 pointer-events-none overflow-hidden" configOverride={config} />
-            <DraggableOverlay groupName="shoulderL" />
-            <DraggableOverlay groupName="shoulderR" />
-            <DraggableOverlay groupName="joystick" />
-            <DraggableOverlay groupName="actionA" />
-            <DraggableOverlay groupName="actionB" />
-            <DraggableOverlay groupName="actionX" />
-            <DraggableOverlay groupName="actionY" />
-            <DraggableOverlay groupName="system" />
+            {activeTab === 'layout' && (
+              <div className="absolute inset-0 z-50 pointer-events-auto">
+                {renderDraggableOverlay('shoulderL')}
+                {renderDraggableOverlay('shoulderR')}
+                {renderDraggableOverlay('joystick')}
+                {renderDraggableOverlay('actionA')}
+                {renderDraggableOverlay('actionB')}
+                {renderDraggableOverlay('actionX')}
+                {renderDraggableOverlay('actionY')}
+                {renderDraggableOverlay('system')}
+              </div>
+            )}
           </div>
         </div>
       )}

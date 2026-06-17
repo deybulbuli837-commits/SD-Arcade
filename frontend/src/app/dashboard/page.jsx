@@ -200,7 +200,7 @@ export default function DashboardPage() {
                             
                             {/* Sticker Top Header */}
                             <div className="bg-black/40 text-white/70 text-[10px] uppercase font-black px-2 py-0.5 flex justify-between items-center rounded-t-sm">
-                              <span>SD-Arcade System</span>
+                              <span className="neon-text text-white" style={{ textShadow: "1px 1px 0px #bc13fe, 2px 2px 0px #00f3ff" }}>SD-Arcade System</span>
                               <span>{rom.platform}</span>
                             </div>
 
